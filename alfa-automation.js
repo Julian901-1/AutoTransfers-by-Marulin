@@ -2039,28 +2039,33 @@ export class AlfaAutomation {
       // Try to find and click the template, but continue if not found (not critical)
       let selfTransferClicked = false;
       try {
-        await this.waitForSelectorWithRetry('button[data-test-id="phone-list-item"]', {
-          timeout: 15000,
-          retries: 3,
-          targetFrame: transferFrame
-        });
-        selfTransferClicked = await transferFrame.evaluate(() => {
-          const items = Array.from(document.querySelectorAll('button[data-test-id="phone-list-item"]'));
-          const selfTransfer = items.find(item => item.textContent.includes('Перевод в Т-Банк'));
-          if (selfTransfer) {
-            selfTransfer.click();
-            return true;
-          }
-          return false;
+        const templateButtonHandle = await transferFrame.waitForSelector('button[data-test-id="phone-list-item"]', {
+          timeout: 15000
         });
 
+        if (templateButtonHandle) {
+          try {
+            selfTransferClicked = await transferFrame.evaluate(() => {
+              const items = Array.from(document.querySelectorAll('button[data-test-id="phone-list-item"]'));
+              const selfTransfer = items.find(item => item.textContent.includes('Перевод в Т-Банк'));
+              if (selfTransfer) {
+                selfTransfer.click();
+                return true;
+              }
+              return false;
+            });
+          } finally {
+            await templateButtonHandle.dispose().catch(() => {});
+          }
+        }
+
         if (selfTransferClicked) {
-          console.log('[ALFA→TBANK] ✔ Шаблон "Перевод в Т-Банк" найден и выбран');
+          console.log('[ALFA→TBANK] Шаблон "Перевод в Т-Банк" выбран');
         } else {
-          console.log('[ALFA→TBANK] ⚠️ Шаблон "Перевод в Т-Банк" не найден, пропускаем этот шаг (не критично)');
+          console.log('[ALFA→TBANK] Шаблон "Перевод в Т-Банк" не найден, продолжаем вручную');
         }
       } catch (templateError) {
-        console.log('[ALFA→TBANK] ⚠️ Не удалось найти шаблон "Перевод в Т-Банк", продолжаем без него:', templateError.message);
+        console.log('[ALFA→TBANK] ⚠️ Не удалось кликнуть шаблон "Перевод в Т-Банк":', templateError.message);
         // Continue execution - this is not critical
       }
 
