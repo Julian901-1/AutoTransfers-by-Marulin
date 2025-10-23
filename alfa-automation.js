@@ -2039,9 +2039,10 @@ export class AlfaAutomation {
       // Try to find and click the template, but continue if not found (not critical)
       let selfTransferClicked = false;
       try {
-        const templateButtonHandle = await transferFrame.waitForSelector('button[data-test-id="phone-list-item"]', {
-          timeout: 15000
-        });
+        const templateButtonHandle = await transferFrame.waitForSelector(
+          'button[data-test-id="phone-list-item"]',
+          { timeout: 15000 }
+        );
 
         if (templateButtonHandle) {
           try {
@@ -2143,34 +2144,18 @@ export class AlfaAutomation {
       }
 
       console.log('[ALFA→TBANK] Ждём подгрузку списка банков...');
-      // Wait for bank options to load after clicking "Перевод в телефон"
-      // Using the selector from your HTML: div[data-test-id="recipient-select-option"]
-      const firstRecipientOptionHandle = await this.waitForSelectorWithRetry('div[data-test-id="recipient-select-option"]', {
-        timeout: 30000,
-        retries: 3,
-        alternativeSelectors: [
-          'section[data-test-id="sbp-option"]',
-          'div[data-test-id="sbp-option"]',
-          'section[role="option"][data-test-id*="recipient"]'
-        ],
-        waitForLoadingLogo: false
-      });
-      await this.sleep(2000); // Additional 2s to ensure all options are rendered
-
-      let optionsFrame = transferFrame;
-      if (firstRecipientOptionHandle && typeof firstRecipientOptionHandle === 'object') {
-        if (firstRecipientOptionHandle.__alfaFrame) {
-          optionsFrame = firstRecipientOptionHandle.__alfaFrame;
-        } else if (typeof firstRecipientOptionHandle.executionContext === 'function') {
-          const context = firstRecipientOptionHandle.executionContext();
-          if (context && typeof context.frame === 'function') {
-            optionsFrame = context.frame();
-          }
-        }
-      }
+      const optionsReadyHandle = await transferFrame.waitForFunction(
+        () =>
+          Boolean(document.querySelector('div[data-test-id="recipient-select-option"]')) ||
+          Boolean(document.querySelector('section[data-test-id="sbp-option"]')) ||
+          Boolean(document.querySelector('div[data-test-id="sbp-option"]')),
+        { timeout: 30000 }
+      );
+      await optionsReadyHandle?.dispose?.().catch(() => {});
+      await this.sleep(1500);
 
       console.log('[ALFA->TBANK] Шаг 4/11: выбор Т-Банк');
-      const tbankClicked = await optionsFrame.evaluate(() => {
+      const tbankClicked = await transferFrame.evaluate(() => {
         // Find the option that contains "Т-Банк" text
         const options = Array.from(document.querySelectorAll('div[data-test-id="recipient-select-option"]'));
         const tbankOption = options.find(opt => {
@@ -2195,10 +2180,6 @@ export class AlfaAutomation {
         }
         return false;
       });
-
-      if (firstRecipientOptionHandle && typeof firstRecipientOptionHandle.dispose === 'function') {
-        await firstRecipientOptionHandle.dispose().catch(() => {});
-      }
 
       if (!tbankClicked) {
         throw new Error('Не удалось найти и выбрать банк "Т-Банк"');
