@@ -125,6 +125,34 @@ export class SimpleScheduler {
     }, delay);
   }
 
+  delayEvent(eventName, days = 1) {
+    const event = this.events[eventName];
+    if (!event || event.baseHour === null || !event.nextRun) {
+      return false;
+    }
+
+    if (event.timeout) {
+      clearTimeout(event.timeout);
+      event.timeout = null;
+    }
+
+    const newNextRun = new Date(event.nextRun.getTime() + days * 24 * 60 * 60 * 1000);
+    const delay = Math.max(newNextRun.getTime() - Date.now(), 0);
+
+    event.nextRun = newNextRun;
+
+    console.log(
+      `[SIMPLE-SCHEDULER] Delayed ${eventName} transfer by ${days} day(s); new run at ${newNextRun.toISOString()}`
+    );
+
+    event.timeout = setTimeout(async () => {
+      await this.triggerTransfer(eventName);
+      this.scheduleTransfer(eventName, event.baseHour);
+    }, delay);
+
+    return true;
+  }
+
   calculateNextRun(baseHour, timezone, minOffset, maxOffset) {
     const tz = timezone || DEFAULT_TIMEZONE;
 

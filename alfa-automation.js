@@ -2064,18 +2064,108 @@ export class AlfaAutomation {
         // Continue execution - this is not critical
       }
 
+      const ensureRecipientOptionsVisible = async () => {
+        const maxAttempts = 4;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const optionsVisible = await transferFrame
+            .evaluate(() => {
+              return Boolean(
+                document.querySelector('div[data-test-id="recipient-select-option"]') ||
+                  document.querySelector('section[data-test-id="sbp-option"]')
+              );
+            })
+            .catch(() => false);
+
+          if (optionsVisible) {
+            return true;
+          }
+
+          const interactedSelector = await transferFrame
+            .evaluate(() => {
+              const selectors = [
+                '[data-test-id="recipient-select"]',
+                'button[data-test-id="recipient-select"]',
+                'button[data-test-id="recipient-select-trigger"]',
+                'button[data-test-id="recipient-select-dropdown"]',
+                '[data-test-id="recipient-select-field"]',
+                '[data-test-id="recipient-select-form-field"]',
+                '[data-test-id="sbp-select"]',
+                '[role="combobox"][aria-haspopup="listbox"]'
+              ];
+
+              for (const selector of selectors) {
+                const element = document.querySelector(selector);
+                if (element instanceof HTMLElement) {
+                  element.click();
+                  return selector;
+                }
+              }
+
+              const arrowButton = document.querySelector('button[aria-label*="банк"]');
+              if (arrowButton instanceof HTMLElement) {
+                arrowButton.click();
+                return 'button[aria-label*="банк"]';
+              }
+
+              const phoneInput = document.querySelector('input[data-test-id="phone-intl-input"]');
+              if (phoneInput instanceof HTMLElement) {
+                phoneInput.focus();
+                const eventInit = { bubbles: true, key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40 };
+                phoneInput.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+                phoneInput.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+                return 'phone-input-arrowdown';
+              }
+
+              return null;
+            })
+            .catch(() => null);
+
+          if (interactedSelector) {
+            console.log(`[ALFA->TBANK] ensureRecipientOptionsVisible attempt ${attempt}: interacted with ${interactedSelector}`);
+          } else {
+            console.log(`[ALFA->TBANK] ensureRecipientOptionsVisible attempt ${attempt}: options still hidden`);
+          }
+
+          await this.sleep(800 + attempt * 400);
+        }
+
+        return false;
+      };
+
+      const optionsVisibleNow = await ensureRecipientOptionsVisible();
+      if (!optionsVisibleNow) {
+        console.log('[ALFA->TBANK] ensureRecipientOptionsVisible did not detect list, waiting for selector explicitly');
+      }
+
       console.log('[ALFA→TBANK] Ждём подгрузку списка банков...');
       // Wait for bank options to load after clicking "Перевод в телефон"
       // Using the selector from your HTML: div[data-test-id="recipient-select-option"]
-      await this.waitForSelectorWithRetry('div[data-test-id="recipient-select-option"]', {
+      const firstRecipientOptionHandle = await this.waitForSelectorWithRetry('div[data-test-id="recipient-select-option"]', {
         timeout: 30000,
         retries: 3,
-        targetFrame: transferFrame
+        alternativeSelectors: [
+          'section[data-test-id="sbp-option"]',
+          'div[data-test-id="sbp-option"]',
+          'section[role="option"][data-test-id*="recipient"]'
+        ],
+        waitForLoadingLogo: false
       });
       await this.sleep(2000); // Additional 2s to ensure all options are rendered
 
-      console.log('[ALFA→TBANK] Этап 4/11: Выбираем Т-Банк');
-      const tbankClicked = await transferFrame.evaluate(() => {
+      let optionsFrame = transferFrame;
+      if (firstRecipientOptionHandle && typeof firstRecipientOptionHandle === 'object') {
+        if (firstRecipientOptionHandle.__alfaFrame) {
+          optionsFrame = firstRecipientOptionHandle.__alfaFrame;
+        } else if (typeof firstRecipientOptionHandle.executionContext === 'function') {
+          const context = firstRecipientOptionHandle.executionContext();
+          if (context && typeof context.frame === 'function') {
+            optionsFrame = context.frame();
+          }
+        }
+      }
+
+      console.log('[ALFA->TBANK] Шаг 4/11: выбор Т-Банк');
+      const tbankClicked = await optionsFrame.evaluate(() => {
         // Find the option that contains "Т-Банк" text
         const options = Array.from(document.querySelectorAll('div[data-test-id="recipient-select-option"]'));
         const tbankOption = options.find(opt => {
@@ -2100,6 +2190,10 @@ export class AlfaAutomation {
         }
         return false;
       });
+
+      if (firstRecipientOptionHandle && typeof firstRecipientOptionHandle.dispose === 'function') {
+        await firstRecipientOptionHandle.dispose().catch(() => {});
+      }
 
       if (!tbankClicked) {
         throw new Error('Не удалось найти и выбрать банк "Т-Банк"');

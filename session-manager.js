@@ -29,6 +29,8 @@ export class SessionManager {
     // Interval for checking scheduled transfers (every 5 minutes)
     this.schedulerInterval = null;
     this.SCHEDULER_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+    this.simpleScheduler = null;
   }
 
   /**
@@ -176,6 +178,26 @@ export class SessionManager {
     this.sessions.clear();
 
     console.log('[SESSION] All sessions closed');
+  }
+
+  setSimpleScheduler(simpleScheduler) {
+    this.simpleScheduler = simpleScheduler || null;
+  }
+
+  delaySimpleSchedulerEvent(eventName, days = 1) {
+    if (!this.simpleScheduler || typeof this.simpleScheduler.delayEvent !== 'function') {
+      console.log(`[SCHEDULER] Simple Scheduler недоступен, не удалось перенести событие ${eventName}`);
+      return false;
+    }
+
+    const success = this.simpleScheduler.delayEvent(eventName, days);
+    if (success) {
+      console.log(`[SCHEDULER] Перенесено событие ${eventName} Simple Scheduler на ${days} день(дня) вперёд`);
+    } else {
+      console.warn(`[SCHEDULER] Не удалось перенести событие ${eventName} Simple Scheduler`);
+    }
+
+    return success;
   }
 
   /**
@@ -769,7 +791,18 @@ export class SessionManager {
       const transferResult = await automation.transferViaSBP(alfaPhone, totalBalance);
 
       if (!transferResult.success) {
-        console.error(`[SCHEDULER] 🌆❌ T-Bank -> Alfa SBP transfer failed: ${transferResult.error}`);
+        if (transferResult.errorCode === 'INSUFFICIENT_FUNDS') {
+          const balanceInfo =
+            typeof transferResult.availableBalance === 'number'
+              ? ` (баланс ${transferResult.availableBalance.toFixed(2)} RUB)`
+              : '';
+          console.warn(
+            `[SCHEDULER] Недостаточно средств для вечернего перевода${balanceInfo}, переносим утренний запуск Simple Scheduler на 1 день`
+          );
+          this.delaySimpleSchedulerEvent('morning', 1);
+        } else {
+          console.error(`[SCHEDULER] 🌆❌ T-Bank -> Alfa SBP transfer failed: ${transferResult.error}`);
+        }
         return;
       }
 

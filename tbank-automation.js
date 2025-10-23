@@ -37,6 +37,8 @@ function buildSbpTransferUrl(accountId, phone) {
   return `https://www.tbank.ru/mybank/payments/persons/phone/?predefined=${predefined}&requiredParams=${ACCOUNT_REQUIRED_PARAMS}`;
 }
 
+const MIN_TBANK_SBP_RESERVE_RUB = 2000;
+
 /**
  * T-Bank automation using Puppeteer with anti-detection
  */
@@ -1585,13 +1587,40 @@ export class TBankAutomation {
         balanceStr = balanceCandidate.replace(/[^\d]/g, '');
       }
 
-      amount = parseFloat(balanceStr);
+      const parsedBalance = parseFloat(balanceStr);
 
-      if (Number.isNaN(amount)) {
+      if (Number.isNaN(parsedBalance)) {
         throw new Error(`Could not parse balance: ${accountBalance}`);
       }
 
-      console.log(`[TBANK→SBP] Баланс счёта: ${accountBalance} -> используем сумму: ${amount} RUB`);
+      const transferAmountRaw = parsedBalance - MIN_TBANK_SBP_RESERVE_RUB;
+      const normalizedTransferAmount = Math.max(
+        0,
+        Number(transferAmountRaw.toFixed(2))
+      );
+
+      console.log(
+        `[TBANK→SBP] Баланс счёта: ${accountBalance} (~${parsedBalance} RUB) -> ` +
+        `используем сумму: ${normalizedTransferAmount} RUB, резерв: ${MIN_TBANK_SBP_RESERVE_RUB} RUB`
+      );
+
+      if (normalizedTransferAmount <= 0) {
+        console.log(
+          `[TBANK→SBP] Баланс меньше или равен резерву ${MIN_TBANK_SBP_RESERVE_RUB} RUB, ` +
+          'перевод отменён.'
+        );
+
+        await this.close();
+
+        return {
+          success: false,
+          error: 'Недостаточно средств для перевода с учётом резерва 2000 RUB',
+          errorCode: 'INSUFFICIENT_FUNDS',
+          availableBalance: parsedBalance
+        };
+      }
+
+      amount = normalizedTransferAmount;
 
       // Check for "Максимум запросов" error message
       const hasMaxRequestsError = await this.page.evaluate(() => {
@@ -1642,7 +1671,7 @@ export class TBankAutomation {
       }
 
       // Step 7: Enter amount in the "Сумма" field
-      console.log(`[TBANK→SBP] Шаг 7/7: Ввод суммы ${amount}...`);
+      console.log(`[TBANK→SBP] Шаг 7/7: Ввод суммы ${amount.toFixed(2)}...`);
 
       await this.page.waitForSelector('input[data-qa-type="amount-from.input"]', {
         timeout: 10000
@@ -1656,7 +1685,7 @@ export class TBankAutomation {
       // Clear and enter amount
       await amountInput.click({ clickCount: 3 }); // Select all
       await this.page.keyboard.press('Backspace');
-      await this.typeWithHumanDelay('input[data-qa-type="amount-from.input"]', amount.toString());
+      await this.typeWithHumanDelay('input[data-qa-type="amount-from.input"]', amount.toFixed(2));
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Step 8: Click "Перевести" submit button

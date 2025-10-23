@@ -1619,11 +1619,14 @@ app.listen(PORT, () => {
       timezone: schedulerTimezone
     });
 
+    sessionManager.setSimpleScheduler(simpleScheduler);
+
     simpleScheduler.start().catch(err => {
       console.error('[SIMPLE-SCHEDULER] Failed to start:', err);
     });
   } else {
     console.log('[SIMPLE-SCHEDULER] Not started: set SCHEDULER_USERNAME and at least one of SCHEDULER_EVENING_HOUR or SCHEDULER_MORNING_HOUR');
+    sessionManager.setSimpleScheduler(null);
   }
 });
 
