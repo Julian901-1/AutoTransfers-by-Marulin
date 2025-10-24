@@ -581,42 +581,63 @@ export class AlfaAutomation {
 
       console.log('[ALFA-LOGIN] Этап 1/9: Переход на web.alfabank.ru');
 
-      // First navigation attempt with timeout handling
+      const waitStart = Date.now();
+      const MAX_TOTAL_WAIT = 240000; // общее ожидание до 4 минут
+      const CHECK_INTERVAL = 5000; // проверяем каждые 5 секунд
+
+      const isLoginControlsReady = async () => {
+        try {
+          return await this.page.evaluate(() => {
+            const isVisible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+            const phoneInput = document.querySelector('input[data-test-id="phoneInput"]');
+            const submitButton = document.querySelector('button.phone-auth-browser__submit-button[type="submit"]');
+            return isVisible(phoneInput) && isVisible(submitButton);
+          });
+        } catch {
+          return false;
+        }
+      };
+
       let navigationSuccessful = false;
       try {
         await this.page.goto('https://web.alfabank.ru/', {
-          waitUntil: 'networkidle2',
+          waitUntil: 'domcontentloaded',
           timeout: 60000
         });
         navigationSuccessful = true;
       } catch (navError) {
-        if (navError.message.includes('timeout')) {
-          console.log('[ALFA-LOGIN] ⚠️ Navigation timeout - проверяем наличие логотипа загрузки');
+        console.log(`[ALFA-LOGIN] ⚠️ Первичная навигация завершилась с ошибкой: ${navError.message}`);
+      }
 
-          const logoOutsideCornerPresent = await this.isAlfaLogoOutsideCorner();
+      let loginControlsReady = await isLoginControlsReady();
+      let lastProgressLog = 0;
 
-          if (logoOutsideCornerPresent) {
-            console.log('[ALFA-LOGIN] WAIT: Alfa logo still away from corner; waiting 60s before retry.');
-            await this.sleep(60000);
+      while (!loginControlsReady && Date.now() - waitStart <= MAX_TOTAL_WAIT) {
+        const elapsed = Date.now() - waitStart;
 
-            // Check if page is now ready
-            const phoneInputPresent = await this.page.$('input[data-test-id="phoneInput"]').catch(() => null);
-            if (phoneInputPresent) {
-              console.log('[ALFA-LOGIN] ✅ Поле ввода телефона появилось');
-              navigationSuccessful = true;
-            } else {
-              throw new Error('Страница не загрузилась даже после дополнительных 60 секунд ожидания');
-            }
-          } else {
-            throw navError;
-          }
-        } else {
-          throw navError;
+        if (elapsed - lastProgressLog >= 30000) {
+          console.log(`[ALFA-LOGIN] ⏳ Ждём форму авторизации уже ${Math.floor(elapsed / 1000)} секунд...`);
+          lastProgressLog = elapsed;
         }
+
+        const logoBlocking = await this.isAlfaLogoOutsideCorner();
+        if (logoBlocking) {
+          console.log('[ALFA-LOGIN] ⌛ Логотип Alfa всё ещё в состоянии загрузки');
+        }
+
+        await this.sleep(CHECK_INTERVAL);
+        loginControlsReady = await isLoginControlsReady();
+      }
+
+      if (!loginControlsReady) {
+        throw new Error('Не удалось дождаться формы авторизации (поле и кнопка не появились за 4 минуты)');
       }
 
       if (navigationSuccessful) {
-        console.log('[ALFA-LOGIN] ✅ Страница успешно загружена');
+        console.log('[ALFA-LOGIN] ✅ Страница готова к вводу телефона');
+      } else {
+        console.log('[ALFA-LOGIN] ✅ Форма авторизации загрузилась после дополнительного ожидания');
+        navigationSuccessful = true;
       }
 
       await this.randomDelay(2000, 4000);
