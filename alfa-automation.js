@@ -2060,14 +2060,40 @@ export class AlfaAutomation {
       // Try to find and click the template, but continue if not found (not critical)
       let selfTransferClicked = false;
       try {
-        const templateButtonHandle = await transferFrame.waitForSelector(
+        const templateButtonOptions = {
+          timeout: 15000,
+          retries: 3,
+          alternativeSelectors: [
+            'button[data-test-id*="phone-list"]',
+            'button[data-test-id*="list-item"]',
+            'button[role="button"]'
+          ],
+          textVariants: ['Перевод в Т-Банк', 'Т-Банк', 'Tinkoff']
+        };
+        if (transferFrame) {
+          templateButtonOptions.targetFrame = transferFrame;
+        }
+        const templateButtonHandle = await this.waitForSelectorWithRetry(
           'button[data-test-id="phone-list-item"]',
-          { timeout: 15000 }
+          templateButtonOptions
         );
 
         if (templateButtonHandle) {
+          // Determine which frame contains the button
+          let buttonFrame = transferFrame;
+          if (templateButtonHandle && typeof templateButtonHandle === 'object') {
+            if (templateButtonHandle.__alfaFrame) {
+              buttonFrame = templateButtonHandle.__alfaFrame;
+            } else if (typeof templateButtonHandle.executionContext === 'function') {
+              const context = templateButtonHandle.executionContext();
+              if (context && typeof context.frame === 'function') {
+                buttonFrame = context.frame();
+              }
+            }
+          }
+
           try {
-            selfTransferClicked = await transferFrame.evaluate(() => {
+            selfTransferClicked = await buttonFrame.evaluate(() => {
               const items = Array.from(document.querySelectorAll('button[data-test-id="phone-list-item"]'));
               const selfTransfer = items.find(item => item.textContent.includes('Перевод в Т-Банк'));
               if (selfTransfer) {
@@ -2165,18 +2191,42 @@ export class AlfaAutomation {
       }
 
       console.log('[ALFA→TBANK] Ждём подгрузку списка банков...');
-      const optionsReadyHandle = await transferFrame.waitForFunction(
-        () =>
-          Boolean(document.querySelector('div[data-test-id="recipient-select-option"]')) ||
-          Boolean(document.querySelector('section[data-test-id="sbp-option"]')) ||
-          Boolean(document.querySelector('div[data-test-id="sbp-option"]')),
-        { timeout: 30000 }
+      const recipientOptionsConfig = {
+        timeout: 30000,
+        retries: 3,
+        alternativeSelectors: [
+          'section[data-test-id="sbp-option"]',
+          'div[data-test-id="sbp-option"]',
+          'div[data-test-id*="recipient"]',
+          'section[tabindex]'
+        ],
+        textVariants: ['Т-Банк', 'Tinkoff', 'СБП']
+      };
+      if (transferFrame) {
+        recipientOptionsConfig.targetFrame = transferFrame;
+      }
+      const optionsReadyHandle = await this.waitForSelectorWithRetry(
+        'div[data-test-id="recipient-select-option"]',
+        recipientOptionsConfig
       );
       await optionsReadyHandle?.dispose?.().catch(() => {});
       await this.sleep(1500);
 
       console.log('[ALFA->TBANK] Шаг 4/11: выбор Т-Банк');
-      const tbankClicked = await transferFrame.evaluate(() => {
+      // Determine which frame contains the recipient options
+      let recipientFrame = transferFrame;
+      if (optionsReadyHandle && typeof optionsReadyHandle === 'object') {
+        if (optionsReadyHandle.__alfaFrame) {
+          recipientFrame = optionsReadyHandle.__alfaFrame;
+        } else if (typeof optionsReadyHandle.executionContext === 'function') {
+          const context = optionsReadyHandle.executionContext();
+          if (context && typeof context.frame === 'function') {
+            recipientFrame = context.frame();
+          }
+        }
+      }
+
+      const tbankClicked = await recipientFrame.evaluate(() => {
         // Find the option that contains "Т-Банк" text
         const options = Array.from(document.querySelectorAll('div[data-test-id="recipient-select-option"]'));
         const tbankOption = options.find(opt => {
