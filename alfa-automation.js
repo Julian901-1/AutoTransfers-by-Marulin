@@ -658,8 +658,6 @@ export class AlfaAutomation {
       await this.randomDelay(500, 1000);
 
       console.log('[ALFA-LOGIN] Этап 3/9: Нажатие "Вперёд"');
-      const urlBeforeSubmit = this.page.url();
-      console.log(`[ALFA-LOGIN] 📍 URL перед нажатием "Вперёд": ${urlBeforeSubmit}`);
 
       // Wait for navigation to complete after clicking submit
       await Promise.all([
@@ -670,9 +668,6 @@ export class AlfaAutomation {
       ]);
 
       await this.randomDelay(2000, 3000);
-
-      const urlAfterSubmit = this.page.url();
-      console.log(`[ALFA-LOGIN] 📍 URL после нажатия "Вперёд": ${urlAfterSubmit}`);
 
       // Check if card input appears or if we were redirected to finish_signin page
       console.log('[ALFA-LOGIN] Проверяем, какая форма появилась после ввода телефона...');
@@ -691,12 +686,24 @@ export class AlfaAutomation {
 
       // If no card input found, try recovery flow (click "Войти" -> "Войти в Альфа-Онлайн")
       if (!hasCardInput) {
-        console.log('[ALFA-LOGIN] 🔄 Форма карты не найдена, запускаем recovery flow...');
+        console.log('[ALFA-LOGIN] 🔄 Форма карты не найдена, ожидаем полную загрузку страницы...');
+
+        // Wait for page to fully load
+        await this.page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 }).catch(() => {
+          console.log('[ALFA-LOGIN] ⚠️ Navigation networkidle0 timeout (продолжаем)');
+        });
+
+        // Wait 1 minute before starting recovery
+        console.log('[ALFA-LOGIN] ⏳ Ожидание 60 секунд перед началом recovery flow...');
+        await this.sleep(60000);
+
+        console.log('[ALFA-LOGIN] 🔄 Запускаем recovery flow...');
 
         try {
-          // Wait for "Войти" button
+          // Wait for "Войти" button with retry
           const loginButtonSelector = 'button.button__component_1cfl7.button__primary_1cfl7';
-          await this.page.waitForSelector(loginButtonSelector, { timeout: 10000 });
+          console.log('[ALFA-LOGIN] Ищем кнопку "Войти"...');
+          await this.waitForSelectorWithRetry(loginButtonSelector, { timeout: 30000, retries: 3 });
           console.log('[ALFA-LOGIN] Нажимаем кнопку "Войти"...');
           await this.page.click(loginButtonSelector);
           await this.sleep(3000);
