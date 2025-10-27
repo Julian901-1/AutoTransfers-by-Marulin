@@ -2106,20 +2106,19 @@ export class AlfaAutomation {
         console.log('[ALFA→TBANK] ⚠️ Using main frame for phone input');
       }
 
-      // Click on phone input field coordinates (566, 472) twice with 500ms delay
+      // Click on phone input field coordinates (566, 472) multiple times to ensure focus
       console.log('[ALFA→TBANK] Клик по координатам поля телефона: (566, 472)');
       await transferFrame.evaluate(() => {
         window.scrollTo(0, 0);
       });
       await this.sleep(500);
 
-      await this.page.mouse.click(566, 472);
-      console.log('[ALFA→TBANK] Первый клик выполнен');
-      await this.sleep(500);
-
-      await this.page.mouse.click(566, 472);
-      console.log('[ALFA→TBANK] Второй клик выполнен');
-      await this.sleep(500);
+      // Click 5 times to ensure the field gets focus
+      for (let clickAttempt = 1; clickAttempt <= 5; clickAttempt++) {
+        await this.page.mouse.click(566, 472);
+        console.log(`[ALFA→TBANK] Клик ${clickAttempt}/5 выполнен`);
+        await this.sleep(300);
+      }
 
       // Type phone number character by character (like SMS code input)
       console.log(`[ALFA→TBANK] Ввод номера телефона: ${normalizedPhone}`);
