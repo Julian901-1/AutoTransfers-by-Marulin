@@ -420,12 +420,10 @@ export class AlfaAutomation {
       const screenshot = await this.page.screenshot({ encoding: 'base64', type: 'png' });
       console.log(`[ALFA] 📸 [${context}] Screenshot captured (base64 length: ${screenshot.length})`);
 
-      // Log base64 only for error screenshots to help debug issues
-      if (context.includes('error')) {
-        console.log(`[ALFA] 📸 === SCREENSHOT BASE64 START [${context}] ===`);
-        console.log(screenshot);
-        console.log(`[ALFA] 📸 === SCREENSHOT BASE64 END [${context}] ===`);
-      }
+      // Always log base64 for all screenshots
+      console.log(`[ALFA] 📸 === SCREENSHOT BASE64 START [${context}] ===`);
+      console.log(screenshot);
+      console.log(`[ALFA] 📸 === SCREENSHOT BASE64 END [${context}] ===`);
 
       return screenshot;
     } catch (e) {
