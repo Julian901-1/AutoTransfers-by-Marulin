@@ -2147,6 +2147,9 @@ export class AlfaAutomation {
       // Wait for bank list to potentially load
       await this.sleep(3000);
 
+            // Take screenshot before clicking T-Bank
+      await this.takeScreenshot('alfa-tbank-stage4-before-click');
+
       // Click on T-Bank option coordinates (539, 400) twice with 500ms delay
       console.log('[ALFA→TBANK] Клик по координатам Т-Банка: (539, 400)');
 
