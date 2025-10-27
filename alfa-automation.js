@@ -653,10 +653,21 @@ export class AlfaAutomation {
       console.log('[ALFA-LOGIN] Этап 2/9: Ввод номера телефона');
       await this.waitForSelectorWithRetry('input[data-test-id="phoneInput"]', { timeout: 30000, retries: 3 });
 
-      // Click on the input to focus it
+      // Click on the input to focus it and move cursor to the end
       console.log('[ALFA-LOGIN] Клик по полю ввода телефона...');
       await this.page.click('input[data-test-id="phoneInput"]');
-      await this.sleep(500);
+      await this.sleep(300);
+
+      // Move cursor to the end of the field
+      await this.page.evaluate(() => {
+        const input = document.querySelector('input[data-test-id="phoneInput"]');
+        if (input) {
+          const length = input.value.length;
+          input.setSelectionRange(length, length);
+          input.focus();
+        }
+      });
+      await this.sleep(200);
 
       // Type phone number character by character (keyboard simulation)
       console.log('[ALFA-LOGIN] Посимвольный ввод номера телефона...');
