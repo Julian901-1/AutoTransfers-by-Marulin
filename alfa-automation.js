@@ -2161,14 +2161,14 @@ export class AlfaAutomation {
       // Wait for bank list to potentially load
       await this.sleep(3000);
 
-      // Click on T-Bank option coordinates (539, 578) twice with 500ms delay
-      console.log('[ALFA→TBANK] Клик по координатам Т-Банка: (539, 578)');
+      // Click on T-Bank option coordinates (539, 377) twice with 500ms delay
+      console.log('[ALFA→TBANK] Клик по координатам Т-Банка: (539, 377)');
 
-      await this.page.mouse.click(539, 578);
+      await this.page.mouse.click(539, 377);
       console.log('[ALFA→TBANK] Первый клик по Т-Банку выполнен');
       await this.sleep(500);
 
-      await this.page.mouse.click(539, 578);
+      await this.page.mouse.click(539, 377);
       console.log('[ALFA→TBANK] Второй клик по Т-Банку выполнен');
 
       console.log('[ALFA→TBANK] ✅ Банк "Т-Банк" выбран');
