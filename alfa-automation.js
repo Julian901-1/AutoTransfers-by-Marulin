@@ -2077,20 +2077,14 @@ export class AlfaAutomation {
         waitUntil: 'domcontentloaded',
         timeout: 60000
       });
-      await waitBetweenSteps();
 
-      console.log('[ALFA→TBANK] Ищем активный iframe формы перевода...');
-      let transferFrame = await this.waitForFrame(frame => {
-        const url = frame.url() || '';
-        return url.includes('/transfers/phone') || url.includes('host-ui') || url.includes('transfer-by-phone');
-      }, {
-        timeout: 30000,
-        description: 'transfer-by-phone iframe'
-      }).catch(() => null);
+      // Wait for page to stabilize (reduced from 15s to 3s)
+      await this.sleep(3000);
 
-
-      if (!transferFrame) {
-        console.log('[ALFA→TBANK] ⚠️ iframe with transfer form not detected yet, will scan all frames.');
+      // Force garbage collection after page load
+      if (global.gc) {
+        global.gc();
+        console.log('[ALFA→TBANK] 🗑️  Garbage collection выполнен после загрузки страницы');
       }
 
       console.log('[ALFA→TBANK] Этап 2/11: Клик по полю телефона и ввод номера');
@@ -2098,13 +2092,6 @@ export class AlfaAutomation {
       const normalizedPhone = trimmedPhone
         ? (trimmedPhone.startsWith('+') ? trimmedPhone : `+${trimmedPhone}`)
         : '';
-
-      // Ensure we have a transfer frame to work with
-      if (!transferFrame) {
-        // Try to use main page if iframe not found
-        transferFrame = this.page.mainFrame();
-        console.log('[ALFA→TBANK] ⚠️ Using main frame for phone input');
-      }
 
       // Click on the input to focus it
       console.log('[ALFA→TBANK] Клик по полю ввода телефона...');
@@ -2117,7 +2104,6 @@ export class AlfaAutomation {
         const char = normalizedPhone[i];
         await this.page.keyboard.type(char, { delay: 100 });
         await this.sleep(50 + Math.random() * 50);
-        console.log(`[ALFA→TBANK] ⌨️ Введён символ ${i + 1}/${normalizedPhone.length}: "${char}"`);
       }
 
       console.log('[ALFA→TBANK] ✅ Номер телефона введён');
@@ -2125,7 +2111,7 @@ export class AlfaAutomation {
 
       // Verify the phone number was entered correctly
       console.log('[ALFA→TBANK] 🔍 Проверка введённого номера...');
-      const enteredPhone = await transferFrame.evaluate(() => {
+      const enteredPhone = await this.page.evaluate(() => {
         const input = document.querySelector('input[data-test-id="phone-intl-input"]');
         return input ? input.value : null;
       });
@@ -2175,7 +2161,7 @@ export class AlfaAutomation {
       await waitBetweenSteps();
 
       console.log('[ALFA→TBANK] Этап 5/11: Получение доступного баланса');
-      const accountBalance = await transferFrame.evaluate(() => {
+      const accountBalance = await this.page.evaluate(() => {
         const amountElement = document.querySelector('span[data-test-id="amount"]');
         return amountElement ? amountElement.textContent : '0';
       });
@@ -2193,8 +2179,7 @@ export class AlfaAutomation {
       console.log('[ALFA→TBANK] Этап 6/11: Вводим сумму');
       const amountInputHandle = await this.waitForSelectorWithRetry('input[name="amount"]', {
         timeout: 15000,
-        retries: 3,
-        targetFrame: transferFrame
+        retries: 3
       });
       const amountInputValue = transferAmount.toFixed(2).replace('.', ',');
       await amountInputHandle.evaluate((input, value) => {
@@ -2211,8 +2196,7 @@ export class AlfaAutomation {
       console.log('[ALFA→TBANK] Этап 7/11: Нажимаем "Продолжить"');
       const submitButtonHandle = await this.waitForSelectorWithRetry('button[type="submit"]', {
         timeout: 15000,
-        retries: 3,
-        targetFrame: transferFrame
+        retries: 3
       });
       await submitButtonHandle.click();
       await submitButtonHandle.dispose();
@@ -2221,8 +2205,7 @@ export class AlfaAutomation {
       console.log('[ALFA→TBANK] Этап 8/11: Нажимаем "Подтвердить"');
       const confirmationButtonHandle = await this.waitForSelectorWithRetry('button[data-test-id="transfer-by-phone-confirmation-submit-btn"]', {
         timeout: 15000,
-        retries: 3,
-        targetFrame: transferFrame
+        retries: 3
       });
       await confirmationButtonHandle.click();
       await confirmationButtonHandle.dispose();
@@ -2240,36 +2223,16 @@ export class AlfaAutomation {
 
       const smsInputHandle = await this.waitForSelectorWithRetry('input.KRyR4.uokLS', {
         timeout: 15000,
-        retries: 3,
-        targetFrame: transferFrame
+        retries: 3
       });
       await smsInputHandle.dispose();
-      const codeInputs = await transferFrame.$$('input.KRyR4.uokLS');
+      const codeInputs = await this.page.$$('input.KRyR4.uokLS');
 
       console.log(`[ALFA→TBANK] Найдено ${codeInputs.length} полей для ввода кода`);
-
-      // Log all input fields found on the page
-      const allInputs = await transferFrame.$$('input');
-      console.log(`[ALFA→TBANK] Количество input элементов в текущем фрейме: ${allInputs.length}`);
-
-      for (let i = 0; i < allInputs.length; i++) {
-        const inputInfo = await transferFrame.evaluate(el => {
-          return {
-            type: el.type,
-            className: el.className,
-            name: el.name,
-            id: el.id,
-            placeholder: el.placeholder,
-            value: el.value
-          };
-        }, allInputs[i]);
-        console.log(`[ALFA→TBANK] Input ${i + 1}:`, JSON.stringify(inputInfo));
-      }
 
       // Enter code digit by digit with focus
       for (let i = 0; i < 4 && i < this.alfaSmsCode.length; i++) {
         const digit = this.alfaSmsCode[i];
-        console.log(`[ALFA→TBANK] ⌨️  Ввод цифры ${i + 1}/4: "${digit}"`);
 
         // Click to focus on the input field
         await codeInputs[i].click();
@@ -2282,8 +2245,19 @@ export class AlfaAutomation {
         // Type the digit
         await codeInputs[i].type(digit, { delay: 100 });
         await this.sleep(350);
+      }
 
-        console.log(`[ALFA→TBANK] ✅ Цифра ${i + 1}/4 введена и обработана`);
+      console.log(`[ALFA→TBANK] ✅ SMS-код (4 цифры) введён`);
+
+      // Dispose all code input handles to prevent memory leak
+      for (const input of codeInputs) {
+        await input.dispose();
+      }
+
+      // Force garbage collection after SMS input
+      if (global.gc) {
+        global.gc();
+        console.log('[ALFA→TBANK] 🗑️  Garbage collection выполнен после ввода SMS-кода');
       }
 
       console.log('[ALFA→TBANK] ✅ SMS-код введён, ожидание обработки...');
@@ -2292,7 +2266,7 @@ export class AlfaAutomation {
       console.log('[ALFA→TBANK] Этап 11/11: Проверка успешности перевода');
 
       // Check for error messages
-      const errorMessages = await transferFrame.evaluate(() => {
+      const errorMessages = await this.page.evaluate(() => {
         const errors = [];
         document.querySelectorAll('[class*="error"], [class*="Error"], .error-message, .alert-danger').forEach(el => {
           if (el.textContent.trim()) {
