@@ -680,20 +680,12 @@ export class AlfaAutomation {
       console.log('[ALFA-LOGIN] ✅ Номер телефона введён');
       await this.sleep(500);
 
-      // Take screenshot after phone input
-      console.log('[ALFA-LOGIN] 📸 Скриншот после ввода телефона...');
-      await this.takeScreenshot('alfa-login-phone-entered');
-
       console.log('[ALFA-LOGIN] Этап 3/9: Нажатие "Вперёд"');
       await this.page.click('button.phone-auth-browser__submit-button[type="submit"]');
 
       // Wait 30 seconds
       console.log('[ALFA-LOGIN] ⏳ Ожидание 30 секунд...');
       await this.sleep(30000);
-
-      // Take screenshot after waiting
-      console.log('[ALFA-LOGIN] 📸 Скриншот после нажатия "Вперёд" и ожидания...');
-      await this.takeScreenshot('alfa-login-after-forward');
 
       console.log('[ALFA-LOGIN] Этап 4/9: Ввод номера карты');
       await this.waitForSelectorWithRetry('input[data-test-id="card-input"]', { timeout: 30000, retries: 3 });
@@ -2139,6 +2131,30 @@ export class AlfaAutomation {
       }
 
       console.log('[ALFA→TBANK] ✅ Номер телефона введён');
+      await this.sleep(1000);
+
+      // Verify the phone number was entered correctly
+      console.log('[ALFA→TBANK] 🔍 Проверка введённого номера...');
+      const enteredPhone = await transferFrame.evaluate(() => {
+        const input = document.querySelector('input[data-test-id="phone-intl-input"]');
+        return input ? input.value : null;
+      });
+
+      console.log(`[ALFA→TBANK] 📱 Введённый номер в поле: "${enteredPhone}"`);
+
+      // Check if the phone number is correct (remove spaces and compare)
+      const cleanEnteredPhone = (enteredPhone || '').replace(/\s+/g, '');
+      const cleanExpectedPhone = normalizedPhone.replace(/\s+/g, '');
+
+      if (cleanEnteredPhone !== cleanExpectedPhone) {
+        console.log(`[ALFA→TBANK] ⚠️ ВНИМАНИЕ: Введённый номер не совпадает!`);
+        console.log(`[ALFA→TBANK] Ожидалось: "${cleanExpectedPhone}"`);
+        console.log(`[ALFA→TBANK] Получено: "${cleanEnteredPhone}"`);
+        await this.takeScreenshot('alfa-tbank-phone-mismatch');
+        throw new Error(`Номер телефона введён некорректно. Ожидалось: ${cleanExpectedPhone}, получено: ${cleanEnteredPhone}`);
+      }
+
+      console.log('[ALFA→TBANK] ✅ Номер телефона введён корректно');
       await waitBetweenSteps();
 
       console.log('[ALFA→TBANK] Этап 3/11: Пропускаем (используем клики по координатам)');
