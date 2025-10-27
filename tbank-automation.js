@@ -1924,14 +1924,10 @@ export class TBankAutomation {
       // Additional wait to ensure the operation completes
       await new Promise(resolve => setTimeout(resolve, 5000));
 
-      // Take screenshot and get base64
-      const screenshotBase64 = await this.takeScreenshot('morning-post-transfer-after');
-      console.log('[TBANK🌅] ✅ Шаги 19-21 выполнены успешно');
-
       return {
         success: true,
-        screenshotBase64
       };
+      
     } catch (error) {
       console.error('[TBANK🌅] ❌ Ошибка при выполнении шагов 19-21:', error.message);
       await this.takeScreenshot('morning-post-transfer-error');
