@@ -661,7 +661,14 @@ export class AlfaAutomation {
       const urlBeforeSubmit = this.page.url();
       console.log(`[ALFA-LOGIN] 📍 URL перед нажатием "Вперёд": ${urlBeforeSubmit}`);
 
-      await this.page.click('button.phone-auth-browser__submit-button[type="submit"]');
+      // Wait for navigation to complete after clicking submit
+      await Promise.all([
+        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {
+          console.log('[ALFA-LOGIN] ⚠️ Navigation timeout or no navigation occurred');
+        }),
+        this.page.click('button.phone-auth-browser__submit-button[type="submit"]')
+      ]);
+
       await this.randomDelay(2000, 3000);
 
       const urlAfterSubmit = this.page.url();
@@ -676,13 +683,25 @@ export class AlfaAutomation {
 
       // Check if card input appears or if we skip directly to SMS
       console.log('[ALFA-LOGIN] Проверяем, какая форма появилась после ввода телефона...');
-      const hasCardInput = await this.page.evaluate(() => {
-        return Boolean(document.querySelector('input[data-test-id="card-input"]'));
-      });
 
-      const hasSmsInput = await this.page.evaluate(() => {
-        return Boolean(document.querySelector('input.code-input__input_71x65'));
-      });
+      let hasCardInput = false;
+      let hasSmsInput = false;
+
+      try {
+        hasCardInput = await this.page.evaluate(() => {
+          return Boolean(document.querySelector('input[data-test-id="card-input"]'));
+        });
+      } catch (evalError) {
+        console.log('[ALFA-LOGIN] ⚠️ Не удалось проверить наличие поля карты:', evalError.message);
+      }
+
+      try {
+        hasSmsInput = await this.page.evaluate(() => {
+          return Boolean(document.querySelector('input.code-input__input_71x65'));
+        });
+      } catch (evalError) {
+        console.log('[ALFA-LOGIN] ⚠️ Не удалось проверить наличие поля SMS:', evalError.message);
+      }
 
       console.log(`[ALFA-LOGIN] Форма карты: ${hasCardInput ? 'ДА' : 'НЕТ'}, Форма SMS: ${hasSmsInput ? 'ДА' : 'НЕТ'}`);
 
