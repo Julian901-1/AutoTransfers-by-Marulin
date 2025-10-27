@@ -2008,19 +2008,7 @@ export class AlfaAutomation {
 
       console.log('[SAVING→ALFA] Этап 6/6: Проверка успешности перевода');
 
-      // MEMORY OPTIMIZATION: Clear page cache and run GC
-      console.log('[SAVING→ALFA] 🧹 Clearing page cache to prevent memory leak...');
-      try {
-        const client = await this.page.target().createCDPSession();
-        await client.send('Network.clearBrowserCache');
-        await client.send('Network.clearBrowserCookies');
-        await client.detach();
-        console.log('[SAVING→ALFA] ✅ Cache cleared');
-      } catch (clearError) {
-        console.log('[SAVING→ALFA] ⚠️ Cache clear failed (non-critical):', clearError.message);
-      }
-
-      // Force garbage collection if available
+      // MEMORY OPTIMIZATION: Only GC, no cache/cookie clearing (causes logout)
       if (global.gc) {
         console.log('[SAVING→ALFA] 🧹 Running garbage collection...');
         global.gc();
@@ -2064,23 +2052,6 @@ export class AlfaAutomation {
         timeout: 60000
       });
       await waitBetweenSteps();
-
-      // MEMORY OPTIMIZATION: Clear cache after page load
-      console.log('[ALFA→TBANK] 🧹 Clearing page cache after navigation...');
-      try {
-        const client = await this.page.target().createCDPSession();
-        await client.send('Network.clearBrowserCache');
-        await client.detach();
-        console.log('[ALFA→TBANK] ✅ Cache cleared');
-      } catch (clearError) {
-        console.log('[ALFA→TBANK] ⚠️ Cache clear failed (non-critical):', clearError.message);
-      }
-
-      // Force garbage collection if available
-      if (global.gc) {
-        console.log('[ALFA→TBANK] 🧹 Running garbage collection...');
-        global.gc();
-      }
 
       console.log('[ALFA→TBANK] Ищем активный iframe формы перевода...');
       let transferFrame = await this.waitForFrame(frame => {
