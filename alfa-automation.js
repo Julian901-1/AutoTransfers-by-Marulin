@@ -589,7 +589,7 @@ export class AlfaAutomation {
       const phone = this.encryptionService ? this.encryptionService.decrypt(this.phone) : this.phone;
       const cardNumber = this.encryptionService ? this.encryptionService.decrypt(this.cardNumber) : this.cardNumber;
 
-      console.log('[ALFA-LOGIN] Этап 1/9: Переход на web.alfabank.ru');
+      console.log('[ALFA-LOGIN] Этап 1/9: Переход на страницу авторизации Альфа-Банка');
 
       const waitStart = Date.now();
       const MAX_TOTAL_WAIT = 240000; // общее ожидание до 4 минут
@@ -610,7 +610,7 @@ export class AlfaAutomation {
 
       let navigationSuccessful = false;
       try {
-        await this.page.goto('https://web.alfabank.ru/', {
+        await this.page.goto('https://private.auth.alfabank.ru/passport/cerberus-mini-blue/dashboard-blue/phone_auth?response_type=code&client_id=newclick-web&scope=openid%20newclick-web&redirect_uri=https%3A%2F%2Fweb.alfabank.ru%2Fopenid%2Fauthorize%2Fnewclick-web%3Fredirect_to%3Dhttps___web.alfabank.ru%2F&acr_values=phone_auth:sms&non_authorized_user=true', {
           waitUntil: 'domcontentloaded',
           timeout: 60000
         });
