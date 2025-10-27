@@ -694,10 +694,16 @@ export class AlfaAutomation {
               return false;
             }
 
-            const elements = Array.from(document.querySelectorAll('body *'));
-            return elements.some(element => {
+            // MEMORY OPTIMIZED: use TreeWalker instead of querySelectorAll('body *')
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_ELEMENT
+            );
+
+            let element;
+            while (element = walker.nextNode()) {
               if (!element.textContent) {
-                return false;
+                continue;
               }
 
               const normalizedText = element.textContent
@@ -706,21 +712,25 @@ export class AlfaAutomation {
                 .trim();
 
               if (!normalizedText.includes(targetText)) {
-                return false;
+                continue;
               }
 
               const style = window.getComputedStyle(element);
               if (!style) {
-                return false;
+                continue;
               }
 
               if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
-                return false;
+                continue;
               }
 
               const rect = element.getBoundingClientRect();
-              return rect.width > 0 && rect.height > 0;
-            });
+              if (rect.width > 0 && rect.height > 0) {
+                return true;
+              }
+            }
+
+            return false;
           });
         } catch (evaluateError) {
           const errorMessage = evaluateError?.message || '';
@@ -905,10 +915,16 @@ export class AlfaAutomation {
               return false;
             }
 
-            const elements = Array.from(document.querySelectorAll('body *'));
-            return elements.some(element => {
+            // MEMORY OPTIMIZED: use TreeWalker instead of querySelectorAll('body *')
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_ELEMENT
+            );
+
+            let element;
+            while (element = walker.nextNode()) {
               if (!element.textContent) {
-                return false;
+                continue;
               }
 
               const normalizedText = element.textContent
@@ -917,21 +933,25 @@ export class AlfaAutomation {
                 .trim();
 
               if (!normalizedText.includes(targetText)) {
-                return false;
+                continue;
               }
 
               const style = window.getComputedStyle(element);
               if (!style) {
-                return false;
+                continue;
               }
 
               if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
-                return false;
+                continue;
               }
 
               const rect = element.getBoundingClientRect();
-              return rect.width > 0 && rect.height > 0;
-            });
+              if (rect.width > 0 && rect.height > 0) {
+                return true;
+              }
+            }
+
+            return false;
           });
         } catch (evaluateError) {
           const errorMessage = evaluateError?.message || '';
@@ -1708,7 +1728,10 @@ export class AlfaAutomation {
 
       const ensureDestinationDropdownOpen = async () => {
         const optionVisible = await this.page.$(destOptionSelector);
-        if (optionVisible) return;
+        if (optionVisible) {
+          await optionVisible.dispose(); // MEMORY FIX: dispose handle
+          return;
+        }
 
         const triggerSelectors = [
           '[data-test-id="dest-account-select"]',
@@ -1751,7 +1774,10 @@ export class AlfaAutomation {
           if (opened) {
             await this.sleep(500);
             const check = await this.page.$(destOptionSelector);
-            if (check) return;
+            if (check) {
+              await check.dispose(); // MEMORY FIX: dispose handle
+              return;
+            }
           }
         }
 
@@ -1780,11 +1806,15 @@ export class AlfaAutomation {
         if (fieldOpened) {
           await this.sleep(500);
           const check = await this.page.$(destOptionSelector);
-          if (check) return;
+          if (check) {
+            await check.dispose(); // MEMORY FIX: dispose handle
+            return;
+          }
         }
 
         const fallbackTriggered = await this.page.evaluate(() => {
-          const candidates = Array.from(document.querySelectorAll('[aria-haspopup="listbox"], [data-test-id]'));
+          // MEMORY OPTIMIZED: iterate NodeList directly, don't create array
+          const candidates = document.querySelectorAll('[aria-haspopup="listbox"], [data-test-id]');
           for (const candidate of candidates) {
             if (
               !(candidate instanceof HTMLElement) &&
@@ -1873,11 +1903,13 @@ export class AlfaAutomation {
 
       console.log('[SAVING→ALFA] Этап 3/6: Нажатие "Всё"');
       const allClicked = await this.page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('button'));
-        const allButton = buttons.find(btn => btn.textContent.includes('Всё'));
-        if (allButton) {
-          allButton.click();
-          return true;
+        // MEMORY OPTIMIZED: use NodeIterator instead of creating array
+        const buttons = document.querySelectorAll('button');
+        for (const btn of buttons) {
+          if (btn.textContent && btn.textContent.includes('Всё')) {
+            btn.click();
+            return true;
+          }
         }
         return false;
       });
@@ -1903,23 +1935,37 @@ export class AlfaAutomation {
         console.log('[SAVING→ALFA] Ожидание 15 секунд для проверки на ошибку...');
         await this.sleep(15000);
 
-        // Check if error message appeared
+        // Check if error message appeared (MEMORY OPTIMIZED: use TreeWalker instead of querySelectorAll)
         const hasError = await this.page.evaluate(() => {
           const errorText = 'Извините, что-то пошло не так';
-          const elements = Array.from(document.querySelectorAll('body *'));
-          return elements.some(el => {
-            if (!el.textContent) return false;
-            const text = el.textContent.replace(/\s+/g, ' ').trim();
-            if (!text.includes(errorText)) return false;
 
-            // Check if element is visible
-            const style = window.getComputedStyle(el);
-            if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
-              return false;
+          // Use TreeWalker for memory-efficient DOM traversal
+          const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_ELEMENT,
+            {
+              acceptNode: (node) => {
+                if (!node.textContent || !node.textContent.includes(errorText)) {
+                  return NodeFilter.FILTER_SKIP;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+              }
             }
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
-          });
+          );
+
+          let currentNode;
+          while (currentNode = walker.nextNode()) {
+            const style = window.getComputedStyle(currentNode);
+            if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
+              continue;
+            }
+            const rect = currentNode.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              return true;
+            }
+          }
+
+          return false;
         });
 
         if (hasError) {
@@ -1951,6 +1997,25 @@ export class AlfaAutomation {
       await this.sleep(10000);
 
       console.log('[SAVING→ALFA] Этап 6/6: Проверка успешности перевода');
+
+      // MEMORY OPTIMIZATION: Clear page cache and run GC
+      console.log('[SAVING→ALFA] 🧹 Clearing page cache to prevent memory leak...');
+      try {
+        const client = await this.page.target().createCDPSession();
+        await client.send('Network.clearBrowserCache');
+        await client.send('Network.clearBrowserCookies');
+        await client.detach();
+        console.log('[SAVING→ALFA] ✅ Cache cleared');
+      } catch (clearError) {
+        console.log('[SAVING→ALFA] ⚠️ Cache clear failed (non-critical):', clearError.message);
+      }
+
+      // Force garbage collection if available
+      if (global.gc) {
+        console.log('[SAVING→ALFA] 🧹 Running garbage collection...');
+        global.gc();
+      }
+
       console.log('[SAVING→ALFA] ✅ Перевод успешно завершён');
 
       return { success: true, amount };
