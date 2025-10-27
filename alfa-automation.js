@@ -2144,7 +2144,12 @@ export class AlfaAutomation {
 
       // Check if the phone number is correct (remove spaces and compare)
       const cleanEnteredPhone = (enteredPhone || '').replace(/\s+/g, '');
-      const cleanExpectedPhone = normalizedPhone.replace(/\s+/g, '');
+
+      // Expected phone should always start with +7
+      const expectedPhone = normalizedPhone.startsWith('+7')
+        ? normalizedPhone
+        : normalizedPhone.replace(/^\+/, '+7');
+      const cleanExpectedPhone = expectedPhone.replace(/\s+/g, '');
 
       if (cleanEnteredPhone !== cleanExpectedPhone) {
         console.log(`[ALFA→TBANK] ⚠️ ВНИМАНИЕ: Введённый номер не совпадает!`);
