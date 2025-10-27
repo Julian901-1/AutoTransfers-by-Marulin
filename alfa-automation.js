@@ -654,129 +654,41 @@ export class AlfaAutomation {
 
       console.log('[ALFA-LOGIN] Этап 2/9: Ввод номера телефона');
       await this.waitForSelectorWithRetry('input[data-test-id="phoneInput"]', { timeout: 30000, retries: 3 });
-      await this.page.type('input[data-test-id="phoneInput"]', phone, { delay: 100 });
-      await this.randomDelay(500, 1000);
+
+      // Type phone number character by character (keyboard simulation)
+      console.log('[ALFA-LOGIN] Посимвольный ввод номера телефона...');
+      for (let i = 0; i < phone.length; i++) {
+        const char = phone[i];
+        await this.page.keyboard.type(char, { delay: 100 });
+        await this.sleep(50 + Math.random() * 50);
+      }
+
+      console.log('[ALFA-LOGIN] ✅ Номер телефона введён');
+      await this.sleep(500);
+
+      // Take screenshot after phone input
+      console.log('[ALFA-LOGIN] 📸 Скриншот после ввода телефона...');
+      await this.takeScreenshot('alfa-login-phone-entered');
 
       console.log('[ALFA-LOGIN] Этап 3/9: Нажатие "Вперёд"');
+      await this.page.click('button.phone-auth-browser__submit-button[type="submit"]');
 
-      // Wait for navigation to complete after clicking submit
-      await Promise.all([
-        this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {
-          console.log('[ALFA-LOGIN] ⚠️ Navigation timeout or no navigation occurred');
-        }),
-        this.page.click('button.phone-auth-browser__submit-button[type="submit"]')
-      ]);
+      // Wait 30 seconds
+      console.log('[ALFA-LOGIN] ⏳ Ожидание 30 секунд...');
+      await this.sleep(30000);
 
+      // Take screenshot after waiting
+      console.log('[ALFA-LOGIN] 📸 Скриншот после нажатия "Вперёд" и ожидания...');
+      await this.takeScreenshot('alfa-login-after-forward');
+
+      console.log('[ALFA-LOGIN] Этап 4/9: Ввод номера карты');
+      await this.waitForSelectorWithRetry('input[data-test-id="card-input"]', { timeout: 30000, retries: 3 });
+      await this.page.type('input[data-test-id="card-input"]', cardNumber, { delay: 100 });
+      await this.randomDelay(500, 1000);
+
+      console.log('[ALFA-LOGIN] Этап 5/9: Нажатие "Продолжить"');
+      await this.page.click('button[data-test-id="card-continue-button"]');
       await this.randomDelay(2000, 3000);
-
-      // Check if card input appears or if we were redirected to finish_signin page
-      console.log('[ALFA-LOGIN] Проверяем, какая форма появилась после ввода телефона...');
-
-      let hasCardInput = false;
-
-      try {
-        hasCardInput = await this.page.evaluate(() => {
-          return Boolean(document.querySelector('input[data-test-id="card-input"]'));
-        });
-      } catch (evalError) {
-        console.log('[ALFA-LOGIN] ⚠️ Не удалось проверить наличие поля карты:', evalError.message);
-      }
-
-      console.log(`[ALFA-LOGIN] Форма карты найдена: ${hasCardInput ? 'ДА' : 'НЕТ'}`);
-
-      // If no card input found, try recovery flow (click "Войти" -> "Войти в Альфа-Онлайн")
-      if (!hasCardInput) {
-        console.log('[ALFA-LOGIN] 🔄 Форма карты не найдена, ожидаем полную загрузку страницы...');
-
-        // Wait for page to fully load
-        await this.page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 }).catch(() => {
-          console.log('[ALFA-LOGIN] ⚠️ Navigation networkidle0 timeout (продолжаем)');
-        });
-
-        // Wait 1 minute before starting recovery
-        console.log('[ALFA-LOGIN] ⏳ Ожидание 60 секунд перед началом recovery flow...');
-        await this.sleep(60000);
-
-        console.log('[ALFA-LOGIN] 🔄 Запускаем recovery flow...');
-
-        try {
-          // Wait for "Войти" button with retry
-          const loginButtonSelector = 'button.button__component_1cfl7.button__primary_1cfl7';
-          console.log('[ALFA-LOGIN] Ищем кнопку "Войти"...');
-          await this.waitForSelectorWithRetry(loginButtonSelector, { timeout: 30000, retries: 3 });
-          console.log('[ALFA-LOGIN] Нажимаем кнопку "Войти"...');
-          await this.page.click(loginButtonSelector);
-          await this.sleep(3000);
-
-          console.log('[ALFA-LOGIN] Ищем кнопку "Войти в Альфа-Онлайн"...');
-          // Click "Войти в Альфа-Онлайн"
-          const alfaOnlineLink = await this.page.evaluate(() => {
-            const links = Array.from(document.querySelectorAll('a[href="https://web.alfabank.ru/"]'));
-            const alfaOnlineLink = links.find(link => {
-              const text = link.textContent || '';
-              return text.includes('Войти в') && text.includes('Альфа-Онлайн');
-            });
-            return alfaOnlineLink ? true : false;
-          });
-
-          if (alfaOnlineLink) {
-            await this.page.evaluate(() => {
-              const links = Array.from(document.querySelectorAll('a[href="https://web.alfabank.ru/"]'));
-              const alfaOnlineLink = links.find(link => {
-                const text = link.textContent || '';
-                return text.includes('Войти в') && text.includes('Альфа-Онлайн');
-              });
-              if (alfaOnlineLink) {
-                alfaOnlineLink.click();
-              }
-            });
-            console.log('[ALFA-LOGIN] ✅ Нажали "Войти в Альфа-Онлайн", ожидаем загрузку формы...');
-            await this.sleep(5000);
-
-            // Wait for phone input again
-            console.log('[ALFA-LOGIN] Ожидаем повторное появление формы телефона...');
-            await this.waitForSelectorWithRetry('input[data-test-id="phoneInput"]', { timeout: 30000, retries: 3 });
-
-            // Re-enter phone
-            console.log('[ALFA-LOGIN] Повторный ввод номера телефона...');
-            await this.page.type('input[data-test-id="phoneInput"]', phone, { delay: 100 });
-            await this.randomDelay(500, 1000);
-
-            console.log('[ALFA-LOGIN] Повторное нажатие "Вперёд"...');
-            await Promise.all([
-              this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}),
-              this.page.click('button.phone-auth-browser__submit-button[type="submit"]')
-            ]);
-            await this.randomDelay(2000, 3000);
-
-            // Check for card input again
-            hasCardInput = await this.page.evaluate(() => {
-              return Boolean(document.querySelector('input[data-test-id="card-input"]'));
-            });
-            console.log(`[ALFA-LOGIN] После повторного входа - форма карты найдена: ${hasCardInput ? 'ДА' : 'НЕТ'}`);
-          } else {
-            throw new Error('Не удалось найти ссылку "Войти в Альфа-Онлайн"');
-          }
-        } catch (redirectError) {
-          console.error('[ALFA-LOGIN] ❌ Ошибка при обработке редиректа:', redirectError.message);
-          await this.takeScreenshot('alfa-login-redirect-error');
-          throw redirectError;
-        }
-      }
-
-      // Now proceed with card input
-      if (hasCardInput) {
-        console.log('[ALFA-LOGIN] Этап 4/9: Ввод номера карты');
-        await this.waitForSelectorWithRetry('input[data-test-id="card-input"]', { timeout: 30000, retries: 3 });
-        await this.page.type('input[data-test-id="card-input"]', cardNumber, { delay: 100 });
-        await this.randomDelay(500, 1000);
-
-        console.log('[ALFA-LOGIN] Этап 5/9: Нажатие "Продолжить"');
-        await this.page.click('button[data-test-id="card-continue-button"]');
-        await this.randomDelay(2000, 3000);
-      } else {
-        throw new Error('Не удалось найти поле ввода карты после всех попыток');
-      }
 
       console.log('[ALFA-LOGIN] Этап 6/9: Ожидание SMS-кода');
       this.pendingInputType = 'alfa_sms';
