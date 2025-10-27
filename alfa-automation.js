@@ -281,9 +281,14 @@ export class AlfaAutomation {
     } = options;
 
     const startTime = Date.now();
+    let iterationCount = 0;
 
     while (Date.now() - startTime <= timeout) {
+      iterationCount++;
+
+      // MEMORY OPTIMIZATION: frames() returns array, limit calls frequency
       const frames = this.page.frames();
+
       for (const frame of frames) {
         if (!frame || frame.isDetached()) {
           continue;
@@ -297,9 +302,14 @@ export class AlfaAutomation {
         }
 
         if (matches) {
-          console.log(`[ALFA-FRAME] Matched frame for ${description}: ${frame.url()}`);
+          console.log(`[ALFA-FRAME] Matched frame for ${description}: ${frame.url()} (after ${iterationCount} iterations)`);
           return frame;
         }
+      }
+
+      // MEMORY OPTIMIZATION: Force GC every 10 iterations to clear frame references
+      if (iterationCount % 10 === 0 && global.gc) {
+        global.gc();
       }
 
       await this.sleep(Math.min(pollInterval, Math.max(100, timeout / 10)));
@@ -2055,6 +2065,23 @@ export class AlfaAutomation {
       });
       await waitBetweenSteps();
 
+      // MEMORY OPTIMIZATION: Clear cache after page load
+      console.log('[ALFA→TBANK] 🧹 Clearing page cache after navigation...');
+      try {
+        const client = await this.page.target().createCDPSession();
+        await client.send('Network.clearBrowserCache');
+        await client.detach();
+        console.log('[ALFA→TBANK] ✅ Cache cleared');
+      } catch (clearError) {
+        console.log('[ALFA→TBANK] ⚠️ Cache clear failed (non-critical):', clearError.message);
+      }
+
+      // Force garbage collection if available
+      if (global.gc) {
+        console.log('[ALFA→TBANK] 🧹 Running garbage collection...');
+        global.gc();
+      }
+
       console.log('[ALFA→TBANK] Ищем активный iframe формы перевода...');
       let transferFrame = await this.waitForFrame(frame => {
         const url = frame.url() || '';
@@ -2109,140 +2136,9 @@ export class AlfaAutomation {
       console.log('[ALFA→TBANK] ✅ Номер телефона введён');
       await waitBetweenSteps();
 
-      console.log('[ALFA→TBANK] Этап 3/11: Пытаемся найти шаблон "Перевод в Т-Банк"');
-
-      // Try to find and click the template, but continue if not found (not critical)
-      let selfTransferClicked = false;
-      try {
-        const templateButtonOptions = {
-          timeout: 15000,
-          retries: 3,
-          alternativeSelectors: [
-            'button[data-test-id*="phone-list"]',
-            'button[data-test-id*="list-item"]',
-            'button[role="button"]'
-          ],
-          textVariants: ['Перевод в Т-Банк', 'Т-Банк', 'Tinkoff']
-        };
-        if (transferFrame) {
-          templateButtonOptions.targetFrame = transferFrame;
-        }
-        const templateButtonHandle = await this.waitForSelectorWithRetry(
-          'button[data-test-id="phone-list-item"]',
-          templateButtonOptions
-        );
-
-        if (templateButtonHandle) {
-          // Determine which frame contains the button
-          let buttonFrame = transferFrame;
-          if (templateButtonHandle && typeof templateButtonHandle === 'object') {
-            if (templateButtonHandle.__alfaFrame) {
-              buttonFrame = templateButtonHandle.__alfaFrame;
-            } else if (typeof templateButtonHandle.executionContext === 'function') {
-              const context = templateButtonHandle.executionContext();
-              if (context && typeof context.frame === 'function') {
-                buttonFrame = context.frame();
-              }
-            }
-          }
-
-          try {
-            selfTransferClicked = await buttonFrame.evaluate(() => {
-              const items = Array.from(document.querySelectorAll('button[data-test-id="phone-list-item"]'));
-              const selfTransfer = items.find(item => item.textContent.includes('Перевод в Т-Банк'));
-              if (selfTransfer) {
-                selfTransfer.click();
-                return true;
-              }
-              return false;
-            });
-          } finally {
-            await templateButtonHandle.dispose().catch(() => {});
-          }
-        }
-
-        if (selfTransferClicked) {
-          console.log('[ALFA→TBANK] Шаблон "Перевод в Т-Банк" выбран');
-        } else {
-          console.log('[ALFA→TBANK] Шаблон "Перевод в Т-Банк" не найден, продолжаем вручную');
-        }
-      } catch (templateError) {
-        console.log('[ALFA→TBANK] ⚠️ Не удалось кликнуть шаблон "Перевод в Т-Банк":', templateError.message);
-        // Continue execution - this is not critical
-      }
-
-      const ensureRecipientOptionsVisible = async () => {
-        const maxAttempts = 4;
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          const optionsVisible = await transferFrame
-            .evaluate(() => {
-              return Boolean(
-                document.querySelector('div[data-test-id="recipient-select-option"]') ||
-                  document.querySelector('section[data-test-id="sbp-option"]')
-              );
-            })
-            .catch(() => false);
-
-          if (optionsVisible) {
-            return true;
-          }
-
-          const interactedSelector = await transferFrame
-            .evaluate(() => {
-              const selectors = [
-                '[data-test-id="recipient-select"]',
-                'button[data-test-id="recipient-select"]',
-                'button[data-test-id="recipient-select-trigger"]',
-                'button[data-test-id="recipient-select-dropdown"]',
-                '[data-test-id="recipient-select-field"]',
-                '[data-test-id="recipient-select-form-field"]',
-                '[data-test-id="sbp-select"]',
-                '[role="combobox"][aria-haspopup="listbox"]'
-              ];
-
-              for (const selector of selectors) {
-                const element = document.querySelector(selector);
-                if (element instanceof HTMLElement) {
-                  element.click();
-                  return selector;
-                }
-              }
-
-              const arrowButton = document.querySelector('button[aria-label*="банк"]');
-              if (arrowButton instanceof HTMLElement) {
-                arrowButton.click();
-                return 'button[aria-label*="банк"]';
-              }
-
-              const phoneInput = document.querySelector('input[data-test-id="phone-intl-input"]');
-              if (phoneInput instanceof HTMLElement) {
-                phoneInput.focus();
-                const eventInit = { bubbles: true, key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40 };
-                phoneInput.dispatchEvent(new KeyboardEvent('keydown', eventInit));
-                phoneInput.dispatchEvent(new KeyboardEvent('keyup', eventInit));
-                return 'phone-input-arrowdown';
-              }
-
-              return null;
-            })
-            .catch(() => null);
-
-          if (interactedSelector) {
-            console.log(`[ALFA->TBANK] ensureRecipientOptionsVisible attempt ${attempt}: interacted with ${interactedSelector}`);
-          } else {
-            console.log(`[ALFA->TBANK] ensureRecipientOptionsVisible attempt ${attempt}: options still hidden`);
-          }
-
-          await this.sleep(800 + attempt * 400);
-        }
-
-        return false;
-      };
-
-      const optionsVisibleNow = await ensureRecipientOptionsVisible();
-      if (!optionsVisibleNow) {
-        console.log('[ALFA->TBANK] ensureRecipientOptionsVisible did not detect list, waiting for selector explicitly');
-      }
+      console.log('[ALFA→TBANK] Этап 3/11: Пропускаем (используем клики по координатам)');
+      // Этап 3 удалён: поиск шаблона "Перевод в Т-Банк" не нужен, используем клики по координатам
+      // ensureRecipientOptionsVisible удалена: не нужна, используем клики по координатам
 
       console.log('[ALFA→TBANK] Этап 4/11: Клик по банку "Т-Банк"');
 
