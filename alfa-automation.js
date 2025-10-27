@@ -589,7 +589,7 @@ export class AlfaAutomation {
       const phone = this.encryptionService ? this.encryptionService.decrypt(this.phone) : this.phone;
       const cardNumber = this.encryptionService ? this.encryptionService.decrypt(this.cardNumber) : this.cardNumber;
 
-      console.log('[ALFA-LOGIN] Этап 1/9: Переход на страницу авторизации Альфа-Банка');
+      console.log('[ALFA-LOGIN] Этап 1/9: Переход на web.alfabank.ru');
 
       const waitStart = Date.now();
       const MAX_TOTAL_WAIT = 240000; // общее ожидание до 4 минут
@@ -610,7 +610,7 @@ export class AlfaAutomation {
 
       let navigationSuccessful = false;
       try {
-        await this.page.goto('https://private.auth.alfabank.ru/passport/cerberus-mini-blue/dashboard-blue/phone_auth?response_type=code&client_id=newclick-web&scope=openid%20newclick-web&redirect_uri=https%3A%2F%2Fweb.alfabank.ru%2Fopenid%2Fauthorize%2Fnewclick-web%3Fredirect_to%3Dhttps___web.alfabank.ru%2F&acr_values=phone_auth:sms&non_authorized_user=true', {
+        await this.page.goto('https://web.alfabank.ru/', {
           waitUntil: 'domcontentloaded',
           timeout: 60000
         });
@@ -674,18 +674,10 @@ export class AlfaAutomation {
       const urlAfterSubmit = this.page.url();
       console.log(`[ALFA-LOGIN] 📍 URL после нажатия "Вперёд": ${urlAfterSubmit}`);
 
-      // Check if we were redirected to main page (unauthorized)
-      if (urlAfterSubmit.includes('web.alfabank.ru') && !urlAfterSubmit.includes('auth') && !urlAfterSubmit.includes('passport')) {
-        console.log('[ALFA-LOGIN] ⚠️ ВНИМАНИЕ: Произошёл редирект на главную страницу! Возможная проблема с авторизацией.');
-        await this.takeScreenshot('alfa-login-redirect-to-main');
-        throw new Error('Редирект на главную страницу после ввода телефона. Возможно, номер телефона не зарегистрирован или заблокирован.');
-      }
-
-      // Check if card input appears or if we skip directly to SMS
+      // Check if card input appears or if we were redirected to finish_signin page
       console.log('[ALFA-LOGIN] Проверяем, какая форма появилась после ввода телефона...');
 
       let hasCardInput = false;
-      let hasSmsInput = false;
 
       try {
         hasCardInput = await this.page.evaluate(() => {
@@ -695,18 +687,78 @@ export class AlfaAutomation {
         console.log('[ALFA-LOGIN] ⚠️ Не удалось проверить наличие поля карты:', evalError.message);
       }
 
-      try {
-        hasSmsInput = await this.page.evaluate(() => {
-          return Boolean(document.querySelector('input.code-input__input_71x65'));
-        });
-      } catch (evalError) {
-        console.log('[ALFA-LOGIN] ⚠️ Не удалось проверить наличие поля SMS:', evalError.message);
+      console.log(`[ALFA-LOGIN] Форма карты найдена: ${hasCardInput ? 'ДА' : 'НЕТ'}`);
+
+      // If no card input found, try recovery flow (click "Войти" -> "Войти в Альфа-Онлайн")
+      if (!hasCardInput) {
+        console.log('[ALFA-LOGIN] 🔄 Форма карты не найдена, запускаем recovery flow...');
+
+        try {
+          // Wait for "Войти" button
+          const loginButtonSelector = 'button.button__component_1cfl7.button__primary_1cfl7';
+          await this.page.waitForSelector(loginButtonSelector, { timeout: 10000 });
+          console.log('[ALFA-LOGIN] Нажимаем кнопку "Войти"...');
+          await this.page.click(loginButtonSelector);
+          await this.sleep(3000);
+
+          console.log('[ALFA-LOGIN] Ищем кнопку "Войти в Альфа-Онлайн"...');
+          // Click "Войти в Альфа-Онлайн"
+          const alfaOnlineLink = await this.page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a[href="https://web.alfabank.ru/"]'));
+            const alfaOnlineLink = links.find(link => {
+              const text = link.textContent || '';
+              return text.includes('Войти в') && text.includes('Альфа-Онлайн');
+            });
+            return alfaOnlineLink ? true : false;
+          });
+
+          if (alfaOnlineLink) {
+            await this.page.evaluate(() => {
+              const links = Array.from(document.querySelectorAll('a[href="https://web.alfabank.ru/"]'));
+              const alfaOnlineLink = links.find(link => {
+                const text = link.textContent || '';
+                return text.includes('Войти в') && text.includes('Альфа-Онлайн');
+              });
+              if (alfaOnlineLink) {
+                alfaOnlineLink.click();
+              }
+            });
+            console.log('[ALFA-LOGIN] ✅ Нажали "Войти в Альфа-Онлайн", ожидаем загрузку формы...');
+            await this.sleep(5000);
+
+            // Wait for phone input again
+            console.log('[ALFA-LOGIN] Ожидаем повторное появление формы телефона...');
+            await this.waitForSelectorWithRetry('input[data-test-id="phoneInput"]', { timeout: 30000, retries: 3 });
+
+            // Re-enter phone
+            console.log('[ALFA-LOGIN] Повторный ввод номера телефона...');
+            await this.page.type('input[data-test-id="phoneInput"]', phone, { delay: 100 });
+            await this.randomDelay(500, 1000);
+
+            console.log('[ALFA-LOGIN] Повторное нажатие "Вперёд"...');
+            await Promise.all([
+              this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}),
+              this.page.click('button.phone-auth-browser__submit-button[type="submit"]')
+            ]);
+            await this.randomDelay(2000, 3000);
+
+            // Check for card input again
+            hasCardInput = await this.page.evaluate(() => {
+              return Boolean(document.querySelector('input[data-test-id="card-input"]'));
+            });
+            console.log(`[ALFA-LOGIN] После повторного входа - форма карты найдена: ${hasCardInput ? 'ДА' : 'НЕТ'}`);
+          } else {
+            throw new Error('Не удалось найти ссылку "Войти в Альфа-Онлайн"');
+          }
+        } catch (redirectError) {
+          console.error('[ALFA-LOGIN] ❌ Ошибка при обработке редиректа:', redirectError.message);
+          await this.takeScreenshot('alfa-login-redirect-error');
+          throw redirectError;
+        }
       }
 
-      console.log(`[ALFA-LOGIN] Форма карты: ${hasCardInput ? 'ДА' : 'НЕТ'}, Форма SMS: ${hasSmsInput ? 'ДА' : 'НЕТ'}`);
-
+      // Now proceed with card input
       if (hasCardInput) {
-        // Traditional flow: phone -> card -> SMS
         console.log('[ALFA-LOGIN] Этап 4/9: Ввод номера карты');
         await this.waitForSelectorWithRetry('input[data-test-id="card-input"]', { timeout: 30000, retries: 3 });
         await this.page.type('input[data-test-id="card-input"]', cardNumber, { delay: 100 });
@@ -716,8 +768,7 @@ export class AlfaAutomation {
         await this.page.click('button[data-test-id="card-continue-button"]');
         await this.randomDelay(2000, 3000);
       } else {
-        console.log('[ALFA-LOGIN] Этап 4/9: Пропускаем (ввод карты не требуется в новом флоу)');
-        console.log('[ALFA-LOGIN] Этап 5/9: Пропускаем (используется phone_auth:sms флоу)');
+        throw new Error('Не удалось найти поле ввода карты после всех попыток');
       }
 
       console.log('[ALFA-LOGIN] Этап 6/9: Ожидание SMS-кода');
