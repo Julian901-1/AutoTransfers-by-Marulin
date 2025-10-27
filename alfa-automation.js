@@ -658,17 +658,48 @@ export class AlfaAutomation {
       await this.randomDelay(500, 1000);
 
       console.log('[ALFA-LOGIN] Этап 3/9: Нажатие "Вперёд"');
+      const urlBeforeSubmit = this.page.url();
+      console.log(`[ALFA-LOGIN] 📍 URL перед нажатием "Вперёд": ${urlBeforeSubmit}`);
+
       await this.page.click('button.phone-auth-browser__submit-button[type="submit"]');
       await this.randomDelay(2000, 3000);
 
-      console.log('[ALFA-LOGIN] Этап 4/9: Ввод номера карты');
-      await this.waitForSelectorWithRetry('input[data-test-id="card-input"]', { timeout: 30000, retries: 3 });
-      await this.page.type('input[data-test-id="card-input"]', cardNumber, { delay: 100 });
-      await this.randomDelay(500, 1000);
+      const urlAfterSubmit = this.page.url();
+      console.log(`[ALFA-LOGIN] 📍 URL после нажатия "Вперёд": ${urlAfterSubmit}`);
 
-      console.log('[ALFA-LOGIN] Этап 5/9: Нажатие "Продолжить"');
-      await this.page.click('button[data-test-id="card-continue-button"]');
-      await this.randomDelay(2000, 3000);
+      // Check if we were redirected to main page (unauthorized)
+      if (urlAfterSubmit.includes('web.alfabank.ru') && !urlAfterSubmit.includes('auth') && !urlAfterSubmit.includes('passport')) {
+        console.log('[ALFA-LOGIN] ⚠️ ВНИМАНИЕ: Произошёл редирект на главную страницу! Возможная проблема с авторизацией.');
+        await this.takeScreenshot('alfa-login-redirect-to-main');
+        throw new Error('Редирект на главную страницу после ввода телефона. Возможно, номер телефона не зарегистрирован или заблокирован.');
+      }
+
+      // Check if card input appears or if we skip directly to SMS
+      console.log('[ALFA-LOGIN] Проверяем, какая форма появилась после ввода телефона...');
+      const hasCardInput = await this.page.evaluate(() => {
+        return Boolean(document.querySelector('input[data-test-id="card-input"]'));
+      });
+
+      const hasSmsInput = await this.page.evaluate(() => {
+        return Boolean(document.querySelector('input.code-input__input_71x65'));
+      });
+
+      console.log(`[ALFA-LOGIN] Форма карты: ${hasCardInput ? 'ДА' : 'НЕТ'}, Форма SMS: ${hasSmsInput ? 'ДА' : 'НЕТ'}`);
+
+      if (hasCardInput) {
+        // Traditional flow: phone -> card -> SMS
+        console.log('[ALFA-LOGIN] Этап 4/9: Ввод номера карты');
+        await this.waitForSelectorWithRetry('input[data-test-id="card-input"]', { timeout: 30000, retries: 3 });
+        await this.page.type('input[data-test-id="card-input"]', cardNumber, { delay: 100 });
+        await this.randomDelay(500, 1000);
+
+        console.log('[ALFA-LOGIN] Этап 5/9: Нажатие "Продолжить"');
+        await this.page.click('button[data-test-id="card-continue-button"]');
+        await this.randomDelay(2000, 3000);
+      } else {
+        console.log('[ALFA-LOGIN] Этап 4/9: Пропускаем (ввод карты не требуется в новом флоу)');
+        console.log('[ALFA-LOGIN] Этап 5/9: Пропускаем (используется phone_auth:sms флоу)');
+      }
 
       console.log('[ALFA-LOGIN] Этап 6/9: Ожидание SMS-кода');
       this.pendingInputType = 'alfa_sms';
