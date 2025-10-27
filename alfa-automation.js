@@ -2143,14 +2143,14 @@ export class AlfaAutomation {
             // Take screenshot before clicking T-Bank
       await this.takeScreenshot('alfa-tbank-stage4-before-click');
 
-      // Click on T-Bank option coordinates (539, 400) twice with 500ms delay
-      console.log('[ALFA→TBANK] Клик по координатам Т-Банка: (539, 400)');
+      // Click on T-Bank option coordinates (532, 628) twice with 500ms delay
+      console.log('[ALFA→TBANK] Клик по координатам Т-Банка: (539, 628)');
 
-      await this.page.mouse.click(539, 400);
+      await this.page.mouse.click(532, 628);
       console.log('[ALFA→TBANK] Первый клик по Т-Банку выполнен');
       await this.sleep(500);
 
-      await this.page.mouse.click(539, 400);
+      await this.page.mouse.click(532, 628);
       console.log('[ALFA→TBANK] Второй клик по Т-Банку выполнен');
 
       console.log('[ALFA→TBANK] ✅ Банк "Т-Банк" выбран');
