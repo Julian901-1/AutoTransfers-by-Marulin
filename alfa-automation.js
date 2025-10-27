@@ -2004,55 +2004,44 @@ export class AlfaAutomation {
         console.log('[ALFA→TBANK] ⚠️ iframe with transfer form not detected yet, will scan all frames.');
       }
 
-      console.log('[ALFA→TBANK] Этап 2/11: Проверяем наличие поля телефона получателя');
-      const phoneInputOptions = {
-        timeout: 15000,
-        retries: 3,
-        alternativeSelectors: [
-          'input[aria-label="Номер телефона получателя"]',
-          'input[placeholder*="телефон"]',
-          'input[type="tel"][aria-label]'
-        ],
-        textVariants: ['номер телефона получателя', 'номер телефона']
-      };
-      if (transferFrame) {
-        phoneInputOptions.targetFrame = transferFrame;
-      }
-      const phoneInputHandle = await this.waitForSelectorWithRetry('input[data-test-id="phone-intl-input"]', phoneInputOptions);
+      console.log('[ALFA→TBANK] Этап 2/11: Клик по полю телефона и ввод номера');
       const trimmedPhone = typeof recipientPhone === 'string' ? recipientPhone.trim() : '';
       const normalizedPhone = trimmedPhone
         ? (trimmedPhone.startsWith('+') ? trimmedPhone : `+${trimmedPhone}`)
         : '';
-      let handleFrame = null;
-      if (phoneInputHandle && typeof phoneInputHandle === 'object') {
-        if (phoneInputHandle.__alfaFrame) {
-          handleFrame = phoneInputHandle.__alfaFrame;
-        } else if (typeof phoneInputHandle.executionContext === 'function') {
-          const context = phoneInputHandle.executionContext();
-          if (context && typeof context.frame === 'function') {
-            handleFrame = context.frame();
-          }
-        }
-      }
-      if (handleFrame && transferFrame && handleFrame !== transferFrame) {
-        console.log(`[ALFA→TBANK] ⚠️ Обнаружен новый iframe формы: ${handleFrame.url()}`);
-      }
-      if (handleFrame) {
-        transferFrame = handleFrame;
-      }
+
+      // Ensure we have a transfer frame to work with
       if (!transferFrame) {
-        throw new Error('Failed to determine transfer form iframe (host-ui).');
+        // Try to use main page if iframe not found
+        transferFrame = this.page.mainFrame();
+        console.log('[ALFA→TBANK] ⚠️ Using main frame for phone input');
       }
-      await phoneInputHandle.evaluate((input, phone) => {
-        input.focus();
-        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        nativeSetter.call(input, '');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        nativeSetter.call(input, phone);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }, normalizedPhone);
-      await phoneInputHandle.dispose();
+
+      // Click on phone input field coordinates (566, 472) twice with 500ms delay
+      console.log('[ALFA→TBANK] Клик по координатам поля телефона: (566, 472)');
+      await transferFrame.evaluate(() => {
+        window.scrollTo(0, 0);
+      });
+      await this.sleep(500);
+
+      await this.page.mouse.click(566, 472);
+      console.log('[ALFA→TBANK] Первый клик выполнен');
+      await this.sleep(500);
+
+      await this.page.mouse.click(566, 472);
+      console.log('[ALFA→TBANK] Второй клик выполнен');
+      await this.sleep(500);
+
+      // Type phone number character by character (like SMS code input)
+      console.log(`[ALFA→TBANK] Ввод номера телефона: ${normalizedPhone}`);
+      for (let i = 0; i < normalizedPhone.length; i++) {
+        const char = normalizedPhone[i];
+        await this.page.keyboard.type(char, { delay: 100 });
+        await this.sleep(50 + Math.random() * 50);
+        console.log(`[ALFA→TBANK] ⌨️ Введён символ ${i + 1}/${normalizedPhone.length}: "${char}"`);
+      }
+
+      console.log('[ALFA→TBANK] ✅ Номер телефона введён');
       await waitBetweenSteps();
 
       console.log('[ALFA→TBANK] Этап 3/11: Пытаемся найти шаблон "Перевод в Т-Банк"');
@@ -2190,72 +2179,22 @@ export class AlfaAutomation {
         console.log('[ALFA->TBANK] ensureRecipientOptionsVisible did not detect list, waiting for selector explicitly');
       }
 
-      console.log('[ALFA→TBANK] Ждём подгрузку списка банков...');
-      const recipientOptionsConfig = {
-        timeout: 30000,
-        retries: 3,
-        alternativeSelectors: [
-          'section[data-test-id="sbp-option"]',
-          'div[data-test-id="sbp-option"]',
-          'div[data-test-id*="recipient"]',
-          'section[tabindex]'
-        ],
-        textVariants: ['Т-Банк', 'Tinkoff', 'СБП']
-      };
-      if (transferFrame) {
-        recipientOptionsConfig.targetFrame = transferFrame;
-      }
-      const optionsReadyHandle = await this.waitForSelectorWithRetry(
-        'div[data-test-id="recipient-select-option"]',
-        recipientOptionsConfig
-      );
-      await optionsReadyHandle?.dispose?.().catch(() => {});
-      await this.sleep(1500);
+      console.log('[ALFA→TBANK] Этап 4/11: Клик по банку "Т-Банк"');
 
-      console.log('[ALFA->TBANK] Шаг 4/11: выбор Т-Банк');
-      // Determine which frame contains the recipient options
-      let recipientFrame = transferFrame;
-      if (optionsReadyHandle && typeof optionsReadyHandle === 'object') {
-        if (optionsReadyHandle.__alfaFrame) {
-          recipientFrame = optionsReadyHandle.__alfaFrame;
-        } else if (typeof optionsReadyHandle.executionContext === 'function') {
-          const context = optionsReadyHandle.executionContext();
-          if (context && typeof context.frame === 'function') {
-            recipientFrame = context.frame();
-          }
-        }
-      }
+      // Wait for bank list to potentially load
+      await this.sleep(3000);
 
-      const tbankClicked = await recipientFrame.evaluate(() => {
-        // Find the option that contains "Т-Банк" text
-        const options = Array.from(document.querySelectorAll('div[data-test-id="recipient-select-option"]'));
-        const tbankOption = options.find(opt => {
-          const text = opt.textContent || '';
-          return text.includes('Т-Банк') || text.includes('Tinkoff');
-        });
+      // Click on T-Bank option coordinates (887, 616) twice with 500ms delay
+      console.log('[ALFA→TBANK] Клик по координатам Т-Банка: (887, 616)');
 
-        if (tbankOption instanceof HTMLElement) {
-          // Scroll into view
-          tbankOption.scrollIntoView({ block: 'center' });
+      await this.page.mouse.click(887, 616);
+      console.log('[ALFA→TBANK] Первый клик по Т-Банку выполнен');
+      await this.sleep(500);
 
-          // Try to find clickable child element (section with tabindex)
-          const clickableSection = tbankOption.querySelector('section[tabindex]');
-          if (clickableSection instanceof HTMLElement) {
-            clickableSection.click();
-            return true;
-          }
+      await this.page.mouse.click(887, 616);
+      console.log('[ALFA→TBANK] Второй клик по Т-Банку выполнен');
 
-          // Fallback: try clicking the div itself
-          tbankOption.click();
-          return true;
-        }
-        return false;
-      });
-
-      if (!tbankClicked) {
-        throw new Error('Не удалось найти и выбрать банк "Т-Банк"');
-      }
-
+      console.log('[ALFA→TBANK] ✅ Банк "Т-Банк" выбран');
       await waitBetweenSteps();
 
       console.log('[ALFA→TBANK] Этап 5/11: Получение доступного баланса');
