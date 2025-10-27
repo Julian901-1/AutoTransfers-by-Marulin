@@ -2027,13 +2027,6 @@ export class AlfaAutomation {
         throw new Error('Не удалось выполнить перевод после всех попыток');
       }
 
-      console.log('[SAVING→ALFA] Этап 5/6: Нажатие "Готово"');
-      await this.waitForSelectorWithRetry('button[data-test-id="ready-button"]', { timeout: 15000, retries: 3 });
-      await this.page.click('button[data-test-id="ready-button"]');
-      await this.sleep(10000);
-
-      console.log('[SAVING→ALFA] Этап 6/6: Проверка успешности перевода');
-
       // MEMORY OPTIMIZATION: Only GC, no cache/cookie clearing (causes logout)
       if (global.gc) {
         console.log('[SAVING→ALFA] 🧹 Running garbage collection...');
