@@ -1530,9 +1530,9 @@ export class TBankAutomation {
       console.log('[TBANK→SBP] Шаг 2-4/7: Переход по прямой ссылке на форму перевода...');
 
       const sbpAccountId = requireEnv('TBANK_SBP_ACCOUNT_ID');
-      const phoneForPrefill = recipientPhone || process.env.FIXED_ALFA_PHONE;
+      const phoneForPrefill = recipientPhone || process.env.FIXED_TBANK_PHONE;
       if (!phoneForPrefill) {
-        throw new Error('Recipient phone is required for SBP transfer (provide parameter or FIXED_ALFA_PHONE env)');
+        throw new Error('Recipient phone is required for SBP transfer (provide parameter or FIXED_TBANK_PHONE env)');
       }
       const transferUrl = buildSbpTransferUrl(sbpAccountId, phoneForPrefill);
 
