@@ -845,7 +845,7 @@ async function executeEveningTransferStep1(username) {
       throw new Error(`T-Bank login failed: ${loginResult.error}`);
     }
 
-    const transferResult = await tbankAutomation.transferViaSBP(FIXED_ALFA_PHONE, null);
+    const transferResult = await tbankAutomation.transferViaSBP(null);
     if (!transferResult.success) {
       throw new Error(`T-Bank SBP transfer failed: ${transferResult.error}`);
     }

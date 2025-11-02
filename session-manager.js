@@ -751,7 +751,6 @@ export class SessionManager {
   async executeEveningTransfer(session) {
     const { automation } = session;
     const alfaAutomation = await this.ensureAlfaAutomation(session);
-    const alfaPhone = process.env.FIXED_ALFA_PHONE;
     const alfaSavingAccountId = process.env.FIXED_ALFA_SAVING_ACCOUNT_ID;
     session.metadata = session.metadata || {};
 
@@ -785,10 +784,10 @@ export class SessionManager {
         return;
       }
 
-      console.log(`[SCHEDULER] 🌆 Step 2-8: Transferring ${totalBalance} RUB from T-Bank to Alfa-Bank via SBP (phone: ${alfaPhone})...`);
+      console.log(`[SCHEDULER] 🌆 Step 2-8: Transferring ${totalBalance} RUB from T-Bank to Alfa-Bank via SBP...`);
 
       // Transfer from T-Bank to Alfa-Bank via SBP (steps 2-8 from instruction)
-      const transferResult = await automation.transferViaSBP(alfaPhone, totalBalance);
+      const transferResult = await automation.transferViaSBP(totalBalance);
 
       if (!transferResult.success) {
         if (transferResult.errorCode === 'INSUFFICIENT_FUNDS') {

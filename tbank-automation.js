@@ -1505,15 +1505,15 @@ export class TBankAutomation {
   /**
    * Transfer money via SBP (Faster Payment System) to another bank (e.g., Alfa-Bank)
    * Implements steps 2-8 from evening transfer instruction
-   * @param {string} recipientPhone - Phone number of recipient (e.g., '+79990000000')
    * @param {number} amount - Amount to transfer in RUB
    */
-  async transferViaSBP(recipientPhone, amount) {
+  async transferViaSBP(amount) {
     try {
       if (!this.sessionActive) {
         throw new Error('Not logged in');
       }
 
+      const recipientPhone = requireEnv('FIXED_TBANK_PHONE');
       console.log(`[TBANK→SBP] 💸 Starting SBP transfer ${amount} RUB to phone ${recipientPhone}...`);
 
       // Ensure we're on /mybank/ page
@@ -1530,11 +1530,7 @@ export class TBankAutomation {
       console.log('[TBANK→SBP] Шаг 2-4/7: Переход по прямой ссылке на форму перевода...');
 
       const sbpAccountId = requireEnv('TBANK_SBP_ACCOUNT_ID');
-      const phoneForPrefill = recipientPhone || process.env.FIXED_TBANK_PHONE;
-      if (!phoneForPrefill) {
-        throw new Error('Recipient phone is required for SBP transfer (provide parameter or FIXED_TBANK_PHONE env)');
-      }
-      const transferUrl = buildSbpTransferUrl(sbpAccountId, phoneForPrefill);
+      const transferUrl = buildSbpTransferUrl(sbpAccountId, recipientPhone);
 
       await this.page.goto(transferUrl, {
         waitUntil: 'networkidle2',
