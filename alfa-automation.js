@@ -2163,18 +2163,18 @@ export class AlfaAutomation {
           console.log(`[ALFA→TBANK] Исправленный номер: "${fixedPhone}"`);
 
           // Clear the field and re-enter corrected phone
-          await phoneInput.click({ clickCount: 3 }); // Select all
+          await this.page.click('input[data-test-id="phone-intl-input"]', { clickCount: 3 }); // Select all
           await this.sleep(200);
           await this.page.keyboard.press('Backspace');
           await this.sleep(500);
 
           console.log(`[ALFA→TBANK] 📞 Повторный ввод номера: ${fixedPhone}`);
-          await phoneInput.type(fixedPhone, { delay: 100 });
+          await this.page.type('input[data-test-id="phone-intl-input"]', fixedPhone, { delay: 100 });
           await this.sleep(1000);
 
           // Re-check the entered phone
           const reEnteredPhone = await this.page.evaluate(() => {
-            const input = document.querySelector('input[placeholder*="телефон"], input[name="phone"], input[type="tel"]');
+            const input = document.querySelector('input[data-test-id="phone-intl-input"]');
             return input ? input.value : null;
           });
 
