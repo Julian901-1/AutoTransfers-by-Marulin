@@ -504,12 +504,21 @@ async function executeEveningTransferStep2(username, amount, browser = null, pag
     }
 
     alfaSmsQueueChecker = setInterval(() => {
-      if (!alfaAutomation) return;
+      if (!alfaAutomation) {
+        console.log('[CHECKER-ALFA-EVENING] ⚠️ alfaAutomation is null, skipping check');
+        return;
+      }
       const pendingType = alfaAutomation.getPendingInputType();
+      console.log(`[CHECKER-ALFA-EVENING] 🔍 Polling - pendingType: ${pendingType}`);
+
       if (pendingType === 'alfa_sms') {
         // Try both login and transfer codes
         const loginKey = `alfa_${username}_login`;
         const transferKey = `alfa_${username}_transfer`;
+
+        console.log(`[CHECKER-ALFA-EVENING] 🔑 Checking keys: loginKey="${loginKey}", transferKey="${transferKey}"`);
+        console.log(`[CHECKER-ALFA-EVENING] 📋 Queue has loginKey: ${smsCodeQueue.has(loginKey)}, Queue has transferKey: ${smsCodeQueue.has(transferKey)}`);
+        console.log(`[CHECKER-ALFA-EVENING] 📋 Queue size: ${smsCodeQueue.size}, Queue keys: ${Array.from(smsCodeQueue.keys()).join(', ')}`);
 
         let queuedSMS = smsCodeQueue.get(loginKey);
         let usedKey = loginKey;
@@ -519,13 +528,26 @@ async function executeEveningTransferStep2(username, amount, browser = null, pag
           usedKey = transferKey;
         }
 
-        if (queuedSMS && Date.now() < queuedSMS.expiresAt) {
-          console.log(`[ALFA-SMS] 📨 Получен новый SMS-код: ${queuedSMS.code} (type: ${queuedSMS.smsType})`);
-          const submitted = alfaAutomation.submitAlfaSMSCode(queuedSMS.code);
-          if (submitted) {
+        if (queuedSMS) {
+          console.log(`[CHECKER-ALFA-EVENING] ✅ Found queued SMS with key "${usedKey}": code=${queuedSMS.code}, smsType=${queuedSMS.smsType}, expired=${Date.now() >= queuedSMS.expiresAt}`);
+
+          if (Date.now() < queuedSMS.expiresAt) {
+            console.log(`[CHECKER-ALFA-EVENING] 📤 Attempting to submit code ${queuedSMS.code}...`);
+            const submitted = alfaAutomation.submitAlfaSMSCode(queuedSMS.code);
+            console.log(`[CHECKER-ALFA-EVENING] Submit result: ${submitted}`);
+
+            if (submitted) {
+              console.log(`[CHECKER-ALFA-EVENING] ✅ Code submitted successfully, deleting from queue`);
+              smsCodeQueue.delete(usedKey);
+            } else {
+              console.log(`[CHECKER-ALFA-EVENING] ⚠️ Code submission returned false`);
+            }
+          } else {
+            console.log(`[CHECKER-ALFA-EVENING] ⏰ Code expired, deleting from queue`);
             smsCodeQueue.delete(usedKey);
-            console.log(`[ALFA-SMS] ✅ SMS-код передан в ожидающий процесс: ${queuedSMS.code}`);
           }
+        } else {
+          console.log(`[CHECKER-ALFA-EVENING] ⌛ No queued SMS found yet, waiting...`);
         }
       }
     }, 500);
@@ -666,12 +688,21 @@ app.post('/api/morning-transfer', async (req, res) => {
 
     // Poll SMS queue (like evening flow) to auto-submit codes when pending
     alfaSmsQueueChecker = setInterval(() => {
-      if (!alfaAutomation) return;
+      if (!alfaAutomation) {
+        console.log('[CHECKER-ALFA-STAGE1] ⚠️ alfaAutomation is null, skipping check');
+        return;
+      }
       const pendingType = alfaAutomation.getPendingInputType();
+      console.log(`[CHECKER-ALFA-STAGE1] 🔍 Polling - pendingType: ${pendingType}`);
+
       if (pendingType === 'alfa_sms') {
         // Try both login and transfer codes
         const loginKey = `alfa_${username}_login`;
         const transferKey = `alfa_${username}_transfer`;
+
+        console.log(`[CHECKER-ALFA-STAGE1] 🔑 Checking keys: loginKey="${loginKey}", transferKey="${transferKey}"`);
+        console.log(`[CHECKER-ALFA-STAGE1] 📋 Queue has loginKey: ${smsCodeQueue.has(loginKey)}, Queue has transferKey: ${smsCodeQueue.has(transferKey)}`);
+        console.log(`[CHECKER-ALFA-STAGE1] 📋 Queue size: ${smsCodeQueue.size}, Queue keys: ${Array.from(smsCodeQueue.keys()).join(', ')}`);
 
         let queuedSMS = smsCodeQueue.get(loginKey);
         let usedKey = loginKey;
@@ -681,13 +712,26 @@ app.post('/api/morning-transfer', async (req, res) => {
           usedKey = transferKey;
         }
 
-        if (queuedSMS && Date.now() < queuedSMS.expiresAt) {
-          console.log(`[ALFA-SMS] 📨 Получен новый SMS-код: ${queuedSMS.code} (type: ${queuedSMS.smsType})`);
-          const submitted = alfaAutomation.submitAlfaSMSCode(queuedSMS.code);
-          if (submitted) {
+        if (queuedSMS) {
+          console.log(`[CHECKER-ALFA-STAGE1] ✅ Found queued SMS with key "${usedKey}": code=${queuedSMS.code}, smsType=${queuedSMS.smsType}, expired=${Date.now() >= queuedSMS.expiresAt}`);
+
+          if (Date.now() < queuedSMS.expiresAt) {
+            console.log(`[CHECKER-ALFA-STAGE1] 📤 Attempting to submit code ${queuedSMS.code}...`);
+            const submitted = alfaAutomation.submitAlfaSMSCode(queuedSMS.code);
+            console.log(`[CHECKER-ALFA-STAGE1] Submit result: ${submitted}`);
+
+            if (submitted) {
+              console.log(`[CHECKER-ALFA-STAGE1] ✅ Code submitted successfully, deleting from queue`);
+              smsCodeQueue.delete(usedKey);
+            } else {
+              console.log(`[CHECKER-ALFA-STAGE1] ⚠️ Code submission returned false`);
+            }
+          } else {
+            console.log(`[CHECKER-ALFA-STAGE1] ⏰ Code expired, deleting from queue`);
             smsCodeQueue.delete(usedKey);
-            console.log(`[ALFA-SMS] ✅ SMS-код передан в ожидающий процесс: ${queuedSMS.code}`);
           }
+        } else {
+          console.log(`[CHECKER-ALFA-STAGE1] ⌛ No queued SMS found yet, waiting...`);
         }
       }
     }, 500);
@@ -818,11 +862,21 @@ app.post('/api/morning-transfer-stage2', async (req, res) => {
 
     // Re-create SMS queue checker for Stage 2
     alfaSmsQueueChecker = setInterval(() => {
-      if (!alfaAutomation) return;
+      if (!alfaAutomation) {
+        console.log('[CHECKER-ALFA-STAGE2] ⚠️ alfaAutomation is null, skipping check');
+        return;
+      }
       const pendingType = alfaAutomation.getPendingInputType();
+      console.log(`[CHECKER-ALFA-STAGE2] 🔍 Polling - pendingType: ${pendingType}`);
+
       if (pendingType === 'alfa_sms') {
         const loginKey = `alfa_${username}_login`;
         const transferKey = `alfa_${username}_transfer`;
+
+        console.log(`[CHECKER-ALFA-STAGE2] 🔑 Checking keys: loginKey="${loginKey}", transferKey="${transferKey}"`);
+        console.log(`[CHECKER-ALFA-STAGE2] 📋 Queue has loginKey: ${smsCodeQueue.has(loginKey)}, Queue has transferKey: ${smsCodeQueue.has(transferKey)}`);
+        console.log(`[CHECKER-ALFA-STAGE2] 📋 Queue size: ${smsCodeQueue.size}, Queue keys: ${Array.from(smsCodeQueue.keys()).join(', ')}`);
+
         let queuedSMS = smsCodeQueue.get(loginKey);
         let usedKey = loginKey;
 
@@ -831,11 +885,26 @@ app.post('/api/morning-transfer-stage2', async (req, res) => {
           usedKey = transferKey;
         }
 
-        if (queuedSMS && Date.now() < queuedSMS.expiresAt) {
-          const submitted = alfaAutomation.submitAlfaSMSCode(queuedSMS.code);
-          if (submitted) {
+        if (queuedSMS) {
+          console.log(`[CHECKER-ALFA-STAGE2] ✅ Found queued SMS with key "${usedKey}": code=${queuedSMS.code}, smsType=${queuedSMS.smsType}, expired=${Date.now() >= queuedSMS.expiresAt}`);
+
+          if (Date.now() < queuedSMS.expiresAt) {
+            console.log(`[CHECKER-ALFA-STAGE2] 📤 Attempting to submit code ${queuedSMS.code}...`);
+            const submitted = alfaAutomation.submitAlfaSMSCode(queuedSMS.code);
+            console.log(`[CHECKER-ALFA-STAGE2] Submit result: ${submitted}`);
+
+            if (submitted) {
+              console.log(`[CHECKER-ALFA-STAGE2] ✅ Code submitted successfully, deleting from queue`);
+              smsCodeQueue.delete(usedKey);
+            } else {
+              console.log(`[CHECKER-ALFA-STAGE2] ⚠️ Code submission returned false`);
+            }
+          } else {
+            console.log(`[CHECKER-ALFA-STAGE2] ⏰ Code expired, deleting from queue`);
             smsCodeQueue.delete(usedKey);
           }
+        } else {
+          console.log(`[CHECKER-ALFA-STAGE2] ⌛ No queued SMS found yet, waiting...`);
         }
       }
     }, 500);

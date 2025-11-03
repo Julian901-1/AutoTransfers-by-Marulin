@@ -706,6 +706,13 @@ export class AlfaAutomation {
 
       console.log('[ALFA-LOGIN] Этап 7/9: Ввод SMS-кода');
       console.log(`[ALFA-LOGIN] 📝 SMS-код для ввода: "${this.alfaSmsCode}" (длина: ${this.alfaSmsCode ? this.alfaSmsCode.length : 0})`);
+      console.log(`[ALFA-LOGIN] 🔍 Проверка: alfaSmsCode === null? ${this.alfaSmsCode === null}, alfaSmsCode === undefined? ${this.alfaSmsCode === undefined}`);
+
+      // Critical check: ensure we have a valid SMS code
+      if (!this.alfaSmsCode || this.alfaSmsCode.length !== 4) {
+        throw new Error(`Недействительный SMS-код после ожидания: "${this.alfaSmsCode}" (ожидалось 4 цифры)`);
+      }
+
       await this.waitForSelectorWithRetry('input.code-input__input_71x65', { timeout: 30000, retries: 3 });
 
       const urlBeforeSmsEntry = this.page.url();
@@ -1092,10 +1099,13 @@ export class AlfaAutomation {
       this.alfaSmsCode = null;
 
       try {
+        console.log('[ALFA-SMS] ⏳ Устанавливаем resolver и ждём код...');
         await new Promise((resolve, reject) => {
           this.alfaSmsCodeResolver = resolve;
+          console.log('[ALFA-SMS] ✅ Resolver установлен, ожидаем вызова...');
 
           const timeoutId = setTimeout(() => {
+            console.log('[ALFA-SMS] ⏰ Timeout сработал, resolver больше не доступен');
             this.alfaSmsCodeResolver = null;
             reject(new Error('Alfa SMS code timeout'));
           }, timeout);
@@ -1105,7 +1115,8 @@ export class AlfaAutomation {
         });
 
         // If we got here, the code was successfully received
-        console.log('[ALFA-SMS] ✅ SMS-код получен успешно');
+        console.log('[ALFA-SMS] ✅ Promise resolved! SMS-код получен успешно');
+        console.log(`[ALFA-SMS] 📋 this.alfaSmsCode после resolve: "${this.alfaSmsCode}"`);
         return;
 
       } catch (error) {
@@ -1216,19 +1227,35 @@ export class AlfaAutomation {
   submitAlfaSMSCode(code) {
     const isNewCode = this.alfaSmsCode !== code;
 
-    // Skip processing if this is not a new code (prevent spam from 500ms interval checker)
+    // If this is not a new code, check if resolver appeared since last time
     if (!isNewCode) {
-      return false;
+      console.log(`[ALFA-SMS] 🔄 Код уже был получен ранее: ${code}, проверяем resolver...`);
+
+      if (this.alfaSmsCodeResolver) {
+        console.log(`[ALFA-SMS] ✅ Resolver теперь доступен, передаём код: ${code}`);
+        console.log(`[ALFA-SMS] 🎯 Вызываем resolver с кодом: "${code}" (тип: ${typeof code}, длина: ${code?.length})`);
+        clearTimeout(this.alfaSmsCodeTimeout);
+        this.alfaSmsCodeResolver(code);
+        this.alfaSmsCodeResolver = null;
+        console.log(`[ALFA-SMS] ✅ Resolver успешно вызван, this.alfaSmsCode теперь: "${this.alfaSmsCode}"`);
+        return true;
+      } else {
+        console.log(`[ALFA-SMS] ⌛ Resolver всё ещё недоступен, код остаётся в памяти`);
+        return false;
+      }
     }
 
     console.log(`[ALFA-SMS] 📨 Получен новый SMS-код: ${code}`);
     this.alfaSmsCode = code;
+    console.log(`[ALFA-SMS] 💾 Код сохранён в this.alfaSmsCode: "${this.alfaSmsCode}"`);
 
     if (this.alfaSmsCodeResolver) {
-      console.log(`[ALFA-SMS] ✅ SMS-код передан в ожидающий процесс: ${code}`);
+      console.log(`[ALFA-SMS] ✅ Resolver уже ожидает, передаём код: ${code}`);
+      console.log(`[ALFA-SMS] 🎯 Вызываем resolver с кодом: "${code}" (тип: ${typeof code}, длина: ${code?.length})`);
       clearTimeout(this.alfaSmsCodeTimeout);
       this.alfaSmsCodeResolver(code);
       this.alfaSmsCodeResolver = null;
+      console.log(`[ALFA-SMS] ✅ Resolver успешно вызван, this.alfaSmsCode теперь: "${this.alfaSmsCode}"`);
       return true;
     } else {
       console.log(`[ALFA-SMS] ⚠️ SMS-код получен, но никто его не ждёт (будет сохранён в памяти): ${code}`);
