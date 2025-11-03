@@ -820,7 +820,7 @@ app.post('/api/morning-transfer-stage2', async (req, res) => {
     alfaSmsQueueChecker = setInterval(() => {
       if (!alfaAutomation) return;
       const pendingType = alfaAutomation.getPendingInputType();
-      if (pendingType === 'sms') {
+      if (pendingType === 'alfa_sms') {
         const loginKey = `alfa_${username}_login`;
         const transferKey = `alfa_${username}_transfer`;
         let queuedSMS = smsCodeQueue.get(loginKey);
