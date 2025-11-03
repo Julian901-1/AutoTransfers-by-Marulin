@@ -295,7 +295,8 @@ app.post('/api/auth/auto-sms-alfa', async (req, res) => {
 
       // Store code in queue with 5-minute TTL (only if not already there)
       if (username) {
-        const queueKey = `alfa_${smsType}_${username}`;
+        // FIX: Use consistent key format: alfa_{username}_{smsType}
+        const queueKey = `alfa_${username}_${smsType}`;
         const existingCode = smsCodeQueue.get(queueKey);
 
         if (existingCode && existingCode.code === code) {
@@ -315,7 +316,7 @@ app.post('/api/auth/auto-sms-alfa', async (req, res) => {
           timestamp: Date.now(),
           expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
         });
-        console.log(`[AUTO-SMS-ALFA] Code ${code} (type: ${smsType}) queued for user ${username}, will expire in 5 minutes`);
+        console.log(`[AUTO-SMS-ALFA] Code ${code} (type: ${smsType}) queued with key: ${queueKey}, will expire in 5 minutes`);
 
         return res.json({
           success: true,
@@ -340,7 +341,7 @@ app.post('/api/auth/auto-sms-alfa', async (req, res) => {
 
     // Clear from queue if it was there
     if (username) {
-      const queueKey = `alfa_${smsType}_${username}`;
+      const queueKey = `alfa_${username}_${smsType}`;
       smsCodeQueue.delete(queueKey);
       console.log(`[AUTO-SMS-ALFA] Cleared code from queue: ${queueKey}`);
     }
@@ -507,8 +508,8 @@ async function executeEveningTransferStep2(username, amount, browser = null, pag
       const pendingType = alfaAutomation.getPendingInputType();
       if (pendingType === 'alfa_sms') {
         // Try both login and transfer codes
-        const loginKey = `alfa_login_${username}`;
-        const transferKey = `alfa_transfer_${username}`;
+        const loginKey = `alfa_${username}_login`;
+        const transferKey = `alfa_${username}_transfer`;
 
         let queuedSMS = smsCodeQueue.get(loginKey);
         let usedKey = loginKey;
@@ -669,8 +670,8 @@ app.post('/api/morning-transfer', async (req, res) => {
       const pendingType = alfaAutomation.getPendingInputType();
       if (pendingType === 'alfa_sms') {
         // Try both login and transfer codes
-        const loginKey = `alfa_login_${username}`;
-        const transferKey = `alfa_transfer_${username}`;
+        const loginKey = `alfa_${username}_login`;
+        const transferKey = `alfa_${username}_transfer`;
 
         let queuedSMS = smsCodeQueue.get(loginKey);
         let usedKey = loginKey;
