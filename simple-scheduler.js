@@ -173,8 +173,15 @@ export class SimpleScheduler {
   }
 
   async triggerTransfer(eventName) {
-    const endpoint =
-      eventName === 'evening' ? '/api/evening-transfer' : '/api/morning-transfer';
+    let endpoint;
+    if (eventName === 'evening') {
+      endpoint = '/api/evening-transfer';
+    } else if (eventName === 'morning-stage2') {
+      endpoint = '/api/morning-transfer-stage2';
+    } else {
+      endpoint = '/api/morning-transfer';
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
 
     console.log(`[SIMPLE-SCHEDULER] Triggering ${eventName} transfer via ${url}`);
@@ -198,5 +205,34 @@ export class SimpleScheduler {
     } catch (error) {
       console.error(`[SIMPLE-SCHEDULER] ${eventName} transfer failed:`, error.message || error);
     }
+  }
+
+  /**
+   * Schedule a one-time event at a specific time
+   * @param {string} eventName - Event name (e.g., 'morning-stage2')
+   * @param {string} timeStr - Time in HH:MM format
+   */
+  scheduleOneTimeEvent(eventName, timeStr) {
+    const now = moment().tz(this.timezone);
+    const [hours, minutes] = timeStr.split(':').map(num => parseInt(num, 10));
+
+    let targetTime = moment().tz(this.timezone).hours(hours).minutes(minutes).seconds(0).milliseconds(0);
+
+    // If target time is in the past, schedule for tomorrow
+    if (targetTime.isBefore(now)) {
+      targetTime.add(1, 'days');
+    }
+
+    const msUntilTrigger = targetTime.diff(now);
+
+    console.log(
+      `[SIMPLE-SCHEDULER] Scheduling one-time ${eventName} for ${targetTime.format('YYYY-MM-DD HH:mm:ss')} ` +
+      `(in ${Math.round(msUntilTrigger / 1000 / 60)} minutes)`
+    );
+
+    setTimeout(() => {
+      console.log(`[SIMPLE-SCHEDULER] Executing one-time ${eventName} event`);
+      this.triggerTransfer(eventName);
+    }, msUntilTrigger);
   }
 }

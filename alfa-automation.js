@@ -2066,10 +2066,31 @@ export class AlfaAutomation {
       };
 
       console.log('[ALFA→TBANK] Этап 1/11: Переходим на страницу переводов по телефону');
-      await this.page.goto('https://web.alfabank.ru/transfers/phone', {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000
-      });
+
+      // Retry logic for page.goto (max 3 attempts)
+      let gotoAttempts = 0;
+      const maxGotoAttempts = 3;
+      let gotoSuccess = false;
+
+      while (gotoAttempts < maxGotoAttempts && !gotoSuccess) {
+        gotoAttempts++;
+        try {
+          console.log(`[ALFA→TBANK] Попытка ${gotoAttempts}/${maxGotoAttempts} загрузки страницы...`);
+          await this.page.goto('https://web.alfabank.ru/transfers/phone', {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+          });
+          gotoSuccess = true;
+          console.log('[ALFA→TBANK] ✅ Страница загружена успешно');
+        } catch (error) {
+          console.log(`[ALFA→TBANK] ⚠️ Попытка ${gotoAttempts} не удалась: ${error.message}`);
+          if (gotoAttempts >= maxGotoAttempts) {
+            throw new Error(`Не удалось загрузить страницу после ${maxGotoAttempts} попыток: ${error.message}`);
+          }
+          console.log('[ALFA→TBANK] Ожидание 5 секунд перед повторной попыткой...');
+          await this.sleep(5000);
+        }
+      }
 
       // Wait for page to stabilize (reduced from 15s to 3s)
       await this.sleep(3000);
