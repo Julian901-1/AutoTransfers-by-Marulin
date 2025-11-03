@@ -705,8 +705,6 @@ export class AlfaAutomation {
       await this.waitForAlfaSMSCode(120000, 3); // 2 minutes timeout per attempt, max 3 retries
 
       console.log('[ALFA-LOGIN] Этап 7/9: Ввод SMS-кода');
-      console.log(`[ALFA-LOGIN] 📝 SMS-код для ввода: "${this.alfaSmsCode}" (длина: ${this.alfaSmsCode ? this.alfaSmsCode.length : 0})`);
-      console.log(`[ALFA-LOGIN] 🔍 Проверка: alfaSmsCode === null? ${this.alfaSmsCode === null}, alfaSmsCode === undefined? ${this.alfaSmsCode === undefined}`);
 
       // Critical check: ensure we have a valid SMS code
       if (!this.alfaSmsCode || this.alfaSmsCode.length !== 4) {
@@ -1099,13 +1097,11 @@ export class AlfaAutomation {
       this.alfaSmsCode = null;
 
       try {
-        console.log('[ALFA-SMS] ⏳ Устанавливаем resolver и ждём код...');
+        console.log('[ALFA-SMS] ⏳ Ожидание SMS-кода...');
         await new Promise((resolve, reject) => {
           this.alfaSmsCodeResolver = resolve;
-          console.log('[ALFA-SMS] ✅ Resolver установлен, ожидаем вызова...');
 
           const timeoutId = setTimeout(() => {
-            console.log('[ALFA-SMS] ⏰ Timeout сработал, resolver больше не доступен');
             this.alfaSmsCodeResolver = null;
             reject(new Error('Alfa SMS code timeout'));
           }, timeout);
@@ -1115,8 +1111,7 @@ export class AlfaAutomation {
         });
 
         // If we got here, the code was successfully received
-        console.log('[ALFA-SMS] ✅ Promise resolved! SMS-код получен успешно');
-        console.log(`[ALFA-SMS] 📋 this.alfaSmsCode после resolve: "${this.alfaSmsCode}"`);
+        console.log('[ALFA-SMS] ✅ SMS-код получен успешно');
         return;
 
       } catch (error) {
@@ -1229,36 +1224,27 @@ export class AlfaAutomation {
 
     // If this is not a new code, check if resolver appeared since last time
     if (!isNewCode) {
-      console.log(`[ALFA-SMS] 🔄 Код уже был получен ранее: ${code}, проверяем resolver...`);
-
       if (this.alfaSmsCodeResolver) {
-        console.log(`[ALFA-SMS] ✅ Resolver теперь доступен, передаём код: ${code}`);
-        console.log(`[ALFA-SMS] 🎯 Вызываем resolver с кодом: "${code}" (тип: ${typeof code}, длина: ${code?.length})`);
+        console.log(`[ALFA-SMS] ✅ Resolver доступен, передаём ранее полученный код`);
         clearTimeout(this.alfaSmsCodeTimeout);
         this.alfaSmsCodeResolver(code);
         this.alfaSmsCodeResolver = null;
-        console.log(`[ALFA-SMS] ✅ Resolver успешно вызван, this.alfaSmsCode теперь: "${this.alfaSmsCode}"`);
         return true;
-      } else {
-        console.log(`[ALFA-SMS] ⌛ Resolver всё ещё недоступен, код остаётся в памяти`);
-        return false;
       }
+      return false;
     }
 
     console.log(`[ALFA-SMS] 📨 Получен новый SMS-код: ${code}`);
     this.alfaSmsCode = code;
-    console.log(`[ALFA-SMS] 💾 Код сохранён в this.alfaSmsCode: "${this.alfaSmsCode}"`);
 
     if (this.alfaSmsCodeResolver) {
-      console.log(`[ALFA-SMS] ✅ Resolver уже ожидает, передаём код: ${code}`);
-      console.log(`[ALFA-SMS] 🎯 Вызываем resolver с кодом: "${code}" (тип: ${typeof code}, длина: ${code?.length})`);
+      console.log(`[ALFA-SMS] ✅ Resolver ожидает, передаём код`);
       clearTimeout(this.alfaSmsCodeTimeout);
       this.alfaSmsCodeResolver(code);
       this.alfaSmsCodeResolver = null;
-      console.log(`[ALFA-SMS] ✅ Resolver успешно вызван, this.alfaSmsCode теперь: "${this.alfaSmsCode}"`);
       return true;
     } else {
-      console.log(`[ALFA-SMS] ⚠️ SMS-код получен, но никто его не ждёт (будет сохранён в памяти): ${code}`);
+      console.log(`[ALFA-SMS] ⚠️ Resolver не найден, код сохранён в памяти (ожидаем установки resolver)`);
       return false;
     }
   }
@@ -1273,11 +1259,10 @@ export class AlfaAutomation {
       throw new Error('Не найдено 4 поля для ввода SMS-кода');
     }
 
-    console.log(`[ALFA-LOGIN] 📝 Ввод SMS-кода: "${code}" (длина: ${code.length})`);
+    console.log(`[ALFA-LOGIN] 📝 Ввод SMS-кода...`);
 
     for (let i = 0; i < 4 && i < code.length; i++) {
       const digit = code[i];
-      console.log(`[ALFA-LOGIN] ⌨️  Ввод цифры ${i + 1}/4: "${digit}"`);
 
       // Click to focus
       await inputs[i].click();
@@ -1290,11 +1275,9 @@ export class AlfaAutomation {
       // Type with delay
       await inputs[i].type(digit, { delay: 100 });
       await this.randomDelay(300, 500);
-
-      console.log(`[ALFA-LOGIN] ✅ Цифра ${i + 1}/4 введена и обработана`);
     }
 
-    console.log('[ALFA-LOGIN] ✅ SMS-код полностью введён');
+    console.log('[ALFA-LOGIN] ✅ SMS-код введён');
   }
 
   /**
@@ -2160,7 +2143,7 @@ export class AlfaAutomation {
       console.log(`[ALFA→TBANK] 📱 Введённый номер в поле: "${enteredPhone}"`);
 
       // Check if the phone number is correct (remove spaces and compare)
-      const cleanEnteredPhone = (enteredPhone || '').replace(/\s+/g, '');
+      let cleanEnteredPhone = (enteredPhone || '').replace(/\s+/g, '');
 
       // Expected phone should always start with +7
       const expectedPhone = normalizedPhone.startsWith('+7')
@@ -2172,11 +2155,47 @@ export class AlfaAutomation {
         console.log(`[ALFA→TBANK] ⚠️ ВНИМАНИЕ: Введённый номер не совпадает!`);
         console.log(`[ALFA→TBANK] Ожидалось: "${cleanExpectedPhone}"`);
         console.log(`[ALFA→TBANK] Получено: "${cleanEnteredPhone}"`);
-        await this.takeScreenshot('alfa-tbank-phone-mismatch');
-        throw new Error(`Номер телефона введён некорректно. Ожидалось: ${cleanExpectedPhone}, получено: ${cleanEnteredPhone}`);
-      }
 
-      console.log('[ALFA→TBANK] ✅ Номер телефона введён корректно');
+        // Try to fix by removing extra 7 at the beginning if pattern is +77...
+        if (cleanEnteredPhone.startsWith('+77') && cleanExpectedPhone.startsWith('+7')) {
+          console.log(`[ALFA→TBANK] 🔧 Обнаружена лишняя семёрка, пробуем исправить...`);
+          const fixedPhone = cleanEnteredPhone.replace(/^\+77/, '+7');
+          console.log(`[ALFA→TBANK] Исправленный номер: "${fixedPhone}"`);
+
+          // Clear the field and re-enter corrected phone
+          await phoneInput.click({ clickCount: 3 }); // Select all
+          await this.sleep(200);
+          await this.page.keyboard.press('Backspace');
+          await this.sleep(500);
+
+          console.log(`[ALFA→TBANK] 📞 Повторный ввод номера: ${fixedPhone}`);
+          await phoneInput.type(fixedPhone, { delay: 100 });
+          await this.sleep(1000);
+
+          // Re-check the entered phone
+          const reEnteredPhone = await this.page.evaluate(() => {
+            const input = document.querySelector('input[placeholder*="телефон"], input[name="phone"], input[type="tel"]');
+            return input ? input.value : null;
+          });
+
+          cleanEnteredPhone = (reEnteredPhone || '').replace(/\s+/g, '');
+          console.log(`[ALFA→TBANK] 📱 Повторно введённый номер: "${reEnteredPhone}"`);
+          console.log(`[ALFA→TBANK] После очистки пробелов: "${cleanEnteredPhone}"`);
+
+          if (cleanEnteredPhone !== cleanExpectedPhone) {
+            console.log(`[ALFA→TBANK] ❌ После исправления номер всё ещё не совпадает!`);
+            await this.takeScreenshot('alfa-tbank-phone-mismatch-after-fix');
+            throw new Error(`Номер телефона некорректен даже после исправления. Ожидалось: ${cleanExpectedPhone}, получено: ${cleanEnteredPhone}`);
+          }
+
+          console.log(`[ALFA→TBANK] ✅ Номер успешно исправлен и проверен`);
+        } else {
+          await this.takeScreenshot('alfa-tbank-phone-mismatch');
+          throw new Error(`Номер телефона введён некорректно. Ожидалось: ${cleanExpectedPhone}, получено: ${cleanEnteredPhone}`);
+        }
+      } else {
+        console.log('[ALFA→TBANK] ✅ Номер телефона введён корректно');
+      }
       await waitBetweenSteps();
 
       console.log('[ALFA→TBANK] Этап 3/11: Пропускаем (используем клики по координатам)');
